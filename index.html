@@ -17,7 +17,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
 <!-- Firestore pour le module Trésorerie -->
-<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+
 <style>
 /* ═══════════════ RESET & VARIABLES ═══════════════ */
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -1812,25 +1812,24 @@ window.addEventListener("load", () => {
 
 // ════════════════════════════════════════════════════════════
 // MODULE TRÉSORERIE — Gestion des transactions financières
-// Auteur : FSEYE v2 — Intégré dans l'application principale
+// Auteur : FSEYE v2 — Réécrit pour Firebase Realtime Database
 // ════════════════════════════════════════════════════════════
 
 // ──────────────────────────────────────────────────────────
-// ⚙️  NOMS DES COLLECTIONS FIRESTORE — Adaptez si nécessaire
+// ⚙️  CHEMINS REALTIME DATABASE (remplace les collections Firestore)
 // ──────────────────────────────────────────────────────────
-const TR_COL = {
-  TRANSACTIONS: "TR_Transactions",    // Transactions courantes
-  ARCHIVES:     "TR_Archives",        // Archives mensuelles
-  DELTAS:       "TR_Deltas",          // Historique des deltas
-  CATEGORIES:   "TR_Categories",      // Catégories dynamiques
-  AGREGATS:     "TR_Agregats",        // Agrégats dashboard principal
-  PREFS:        "TR_Preferences"      // Préférences utilisateur
+const TR_PATH = {
+  TRANSACTIONS: "TR_Transactions",    // /TR_Transactions/{uid}/{yearMonth}/{txnId}
+  ARCHIVES:     "TR_Archives",        // /TR_Archives/{uid}/{yearMonth}/{txnId}
+  DELTAS:       "TR_Deltas",          // /TR_Deltas/{uid}/mois/{yearMonth}
+  CATEGORIES:   "TR_Categories",      // /TR_Categories/{uid}/liste/{catId}
+  AGREGATS:     "TR_Agregats",        // /TR_Agregats/{uid}
+  PREFS:        "TR_Preferences"      // /TR_Preferences/{uid}
 };
 
 // ──────────────────────────────────────────────────────────
 // ÉTAT DU MODULE
 // ──────────────────────────────────────────────────────────
-let trDB           = null;  // Instance Firestore
 let trTransactions = [];    // Transactions mois courant
 let trDeltaHistory = [];    // Historique deltas clôtures
 let trCategories   = [];    // Catégories
@@ -1861,18 +1860,13 @@ const TR_MODE_NAMES = { wave:"Wave", orange:"Orange Money", banque:"Banque", esp
 const TR_MODE_IC    = { wave:"📱", orange:"🟠", banque:"🏦", espece:"💵" };
 
 // ──────────────────────────────────────────────────────────
-// INITIALISATION FIRESTORE (appelée depuis initApp existant)
+// INITIALISATION (appelée depuis initApp existant)
 // ──────────────────────────────────────────────────────────
 function trInit() {
   if(!currentUser) return;
   try {
-    // Réutiliser l'app Firebase déjà initialisée
-    trDB = firebase.firestore();
-
-    // Persistance offline Firestore
-    trDB.enablePersistence({ synchronizeTabs: false }).catch(() => {});
-
-    // Surveiller la connectivité
+    // La RTDB est déjà connectée via la config globale (fbDB)
+    // On écoute la connectivité
     firebase.database().ref(".info/connected").on("value", snap => {
       trFbOk = snap.val() === true;
       if(trFbOk) trFlushOfflineQueue();
@@ -1883,7 +1877,7 @@ function trInit() {
     trSubscribeTransactions();
     trSubscribeDeltas();
   } catch(e) {
-    console.error("[Trésorerie] Init error:", e);
+    console.error("[Trésorerie RTDB] Init error:", e);
   }
 }
 
@@ -1919,11 +1913,11 @@ async function trFlushOfflineQueue() {
 
   for(const op of toProcess) {
     try {
-      const col = `${TR_COL.TRANSACTIONS}/${currentUser.uid}/${op.ym}/transactions`;
+      const refPath = `${TR_PATH.TRANSACTIONS}/${currentUser.uid}/${op.ym}/${op.id}`;
       if(op.type === "delete") {
-        await trDB.collection(col).doc(op.id).delete();
+        await firebase.database().ref(refPath).remove();
       } else {
-        await trDB.collection(col).doc(op.id).set(op.data, { merge: true });
+        await firebase.database().ref(refPath).set(op.data);
       }
     } catch(e) {
       trOfflineQueue.push(op);
@@ -1936,52 +1930,60 @@ async function trFlushOfflineQueue() {
 }
 
 // ──────────────────────────────────────────────────────────
-// LISTENERS FIRESTORE (temps réel)
+// LISTENERS TEMPS RÉEL (Realtime Database)
 // ──────────────────────────────────────────────────────────
 function trSubscribeTransactions() {
-  if(!currentUser || !trDB) return;
-  const col = `${TR_COL.TRANSACTIONS}/${currentUser.uid}/${trCurYM()}/transactions`;
-  const unsub = trDB.collection(col)
-    .onSnapshot(snap => {
-      trTransactions = [];
-      snap.forEach(doc => trTransactions.push({ id: doc.id, ...doc.data() }));
-      trTransactions.sort((a,b) => (b.timestamp||0) - (a.timestamp||0));
-      if(trSubPage === "dashboard") { trRenderKPIs(); trRenderChart1(); }
-      if(trSubPage === "transactions") trRenderList();
-    }, e => console.error("[Trésorerie] Listener:", e));
-  trListeners.push(unsub);
+  if(!currentUser) return;
+  const path = `${TR_PATH.TRANSACTIONS}/${currentUser.uid}/${trCurYM()}`;
+  const ref = firebase.database().ref(path);
+  
+  // On retire l'ancien listener s'il existe
+  if(trListeners.length) { trListeners.forEach(u => { try { u(); } catch(e){} }); trListeners = []; }
+  
+  const unsub = ref.on("value", snap => {
+    const data = snap.val() || {};
+    trTransactions = Object.entries(data).map(([id, val]) => ({ id, ...val }));
+    trTransactions.sort((a,b) => (b.timestamp||0) - (a.timestamp||0));
+    if(trSubPage === "dashboard") { trRenderKPIs(); trRenderChart1(); }
+    if(trSubPage === "transactions") trRenderList();
+  });
+  trListeners.push(() => ref.off("value", unsub));
 }
 
 function trSubscribeDeltas() {
-  if(!currentUser || !trDB) return;
-  const col = `${TR_COL.DELTAS}/${currentUser.uid}/mois`;
-  const unsub = trDB.collection(col)
-    .orderBy("yearMonth","desc").limit(24)
-    .onSnapshot(snap => {
-      trDeltaHistory = [];
-      snap.forEach(doc => trDeltaHistory.push({ id: doc.id, ...doc.data() }));
-      if(trSubPage === "dashboard") trRenderChart2();
-      if(trSubPage === "historique") trRenderDeltas();
-    }, e => console.error("[Trésorerie] Deltas:", e));
-  trListeners.push(unsub);
+  if(!currentUser) return;
+  const path = `${TR_PATH.DELTAS}/${currentUser.uid}/mois`;
+  const ref = firebase.database().ref(path);
+  
+  const unsub = ref.on("value", snap => {
+    const data = snap.val() || {};
+    trDeltaHistory = Object.entries(data).map(([id, val]) => ({ id, ...val }));
+    // Trier par yearMonth décroissant
+    trDeltaHistory.sort((a,b) => b.yearMonth.localeCompare(a.yearMonth));
+    if(trSubPage === "dashboard") trRenderChart2();
+    if(trSubPage === "historique") trRenderDeltas();
+  });
+  trListeners.push(() => ref.off("value", unsub));
 }
 
 function trLoadCategories() {
-  if(!currentUser || !trDB) return;
-  trDB.collection(`${TR_COL.CATEGORIES}/${currentUser.uid}/liste`).get()
-    .then(snap => {
-      trCategories = [];
-      snap.forEach(doc => trCategories.push({ id: doc.id, ...doc.data() }));
-      if(trCategories.length === 0) trCategories = trDefaultCats();
-      trPopulateCatSelect();
-    })
-    .catch(() => { trCategories = trDefaultCats(); trPopulateCatSelect(); });
+  if(!currentUser) return;
+  const path = `${TR_PATH.CATEGORIES}/${currentUser.uid}/liste`;
+  firebase.database().ref(path).once("value").then(snap => {
+    const data = snap.val() || {};
+    trCategories = Object.entries(data).map(([id, val]) => ({ id, ...val }));
+    if(trCategories.length === 0) trCategories = trDefaultCats();
+    trPopulateCatSelect();
+  }).catch(() => { trCategories = trDefaultCats(); trPopulateCatSelect(); });
 }
 
 function trLoadPrefs() {
-  if(!currentUser || !trDB) return;
-  trDB.collection(TR_COL.PREFS).doc(currentUser.uid).get()
-    .then(doc => { if(doc.exists) trPrefs = { ...trPrefs, ...doc.data() }; });
+  if(!currentUser) return;
+  const path = `${TR_PATH.PREFS}/${currentUser.uid}`;
+  firebase.database().ref(path).once("value").then(snap => {
+    const data = snap.val();
+    if(data) trPrefs = { ...trPrefs, ...data };
+  });
 }
 
 function trDefaultCats() {
@@ -1999,7 +2001,8 @@ function trDefaultCats() {
 // PAGE PRINCIPALE DU MODULE
 // ──────────────────────────────────────────────────────────
 function trRenderPage() {
-  if(!trDB && currentUser) trInit();
+  if(!currentUser) { trOfflineQueue=[]; } // pas d'utilisateur
+  if(currentUser && !trListeners.length) trInit();
   trLoadOfflineQueue();
 
   const pg = document.getElementById("pg-tresorerie");
@@ -2013,7 +2016,6 @@ function trRenderPage() {
   ];
 
   pg.innerHTML = `
-    <!-- En-tête module -->
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
       <div>
         <div style="font-weight:800;font-size:.95rem">💰 Trésorerie</div>
@@ -2021,15 +2023,11 @@ function trRenderPage() {
       </div>
       <span class="tr-queue-badge" id="tr-queue-badge" onclick="trFlushOfflineQueue()"></span>
     </div>
-
-    <!-- Sous-navigation -->
     <div class="tr-tabs">
       ${TABS.map(([id,lbl])=>`<button class="tr-tab${trSubPage===id?" on":""}" onclick="trSwitchSub('${id}')">${lbl}</button>`).join("")}
     </div>
-
     <div id="tr-sub-content"></div>
   `;
-
   trRenderSub();
   trUpdateQueueBadge();
 }
@@ -2060,7 +2058,7 @@ function trRenderDashboard(c) {
   const canCloture = !isCurrentMonth || today.getDate() === 1;
 
   c.innerHTML = `
-    <!-- Deux gros boutons -->
+    <!-- Boutons identiques à l'original -->
     <div class="tr-action-grid">
       <button class="tr-big-btn tr-btn-rev" onclick="trOpenForm('rev')">
         <span class="tr-big-btn-ic">💚</span>
@@ -2071,11 +2069,8 @@ function trRenderDashboard(c) {
         <span class="tr-big-btn-lbl">Nouvelle<br>Dépense</span>
       </button>
     </div>
-
-    <!-- KPIs -->
     <div class="tr-kpi-strip" id="tr-kpi-strip"></div>
-
-    <!-- Graphe 1 : Tendance mois -->
+    <!-- Graphiques -->
     <div class="card" style="margin-bottom:12px">
       <div class="card-hd">
         <div><div class="card-title">📊 Évolution du mois en cours</div><div class="card-sub">Revenus vs Dépenses — cumul journalier</div></div>
@@ -2083,21 +2078,16 @@ function trRenderDashboard(c) {
       </div>
       <div class="card-body" style="padding-bottom:10px"><div class="tr-chart-wrap"><canvas id="tr-chart-mois"></canvas></div></div>
     </div>
-
-    <!-- Graphe 2 : Delta mensuel -->
     <div class="card" style="margin-bottom:12px">
       <div class="card-hd"><div><div class="card-title">📊 Capacité d'investissement</div><div class="card-sub">Surplus (▲vert) vs Déficit (▼rouge) par mois</div></div></div>
       <div class="card-body" style="padding-bottom:10px"><div class="tr-chart-wrap"><canvas id="tr-chart-delta"></canvas></div></div>
     </div>
-
-    <!-- Navigation mois -->
+    <!-- Navigation mois + Clôture -->
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
       <button class="btn bg" style="padding:6px 12px;font-size:.74rem" onclick="trChangeMonth(-1)">‹ Mois préc.</button>
       <span style="font-weight:700;font-size:.82rem">${TR_MOISL[trMonth]} ${trYear}</span>
       <button class="btn bg" style="padding:6px 12px;font-size:.74rem" onclick="trChangeMonth(1)">Mois suiv. ›</button>
     </div>
-
-    <!-- Clôture -->
     ${canCloture ? `<div class="tr-cloture-card">
       <div style="font-weight:800;font-size:.88rem;margin-bottom:4px;opacity:.9">📅 Clôture de mois disponible</div>
       <div style="font-size:.7rem;opacity:.7;margin-bottom:11px;line-height:1.5">Archiver les transactions du mois précédent, calculer le delta et mettre à jour les agrégats.</div>
@@ -2126,10 +2116,10 @@ function trChangeMonth(d) {
 }
 
 // ──────────────────────────────────────────────────────────
-// KPIs
+// KPIs (inchangé, sauf le nom de champ, déjà compatible)
 // ──────────────────────────────────────────────────────────
 function trRenderKPIs() {
-  const c    = document.getElementById("tr-kpi-strip");
+  const c = document.getElementById("tr-kpi-strip");
   if(!c) return;
   const rev  = trTransactions.filter(t=>t.type==="rev").reduce((s,t)=>s+t.montant,0);
   const dep  = trTransactions.filter(t=>t.type==="dep").reduce((s,t)=>s+t.montant,0);
@@ -2144,26 +2134,22 @@ function trRenderKPIs() {
     {ic:"📋",lb:"Transactions", v:cnt+" txn",    col:"#2D4FC8", acc:"var(--blue)"}
   ].map(k=>`<div class="tr-kpi"><div class="tr-kpi-acc" style="background:${k.acc}"></div><span class="tr-kpi-ic">${k.ic}</span><div class="tr-kpi-lb">${k.lb}</div><div class="tr-kpi-v" style="color:${k.col}">${k.v}</div><div class="tr-kpi-s">${sub}</div></div>`).join("");
 
-  // Alerte seuil
   const alertEl = document.getElementById("tr-chart-alert");
   if(alertEl) alertEl.style.display = dep > trPrefs.seuil ? "block" : "none";
 }
 
 // ──────────────────────────────────────────────────────────
-// GRAPHIQUES
+// GRAPHIQUES (inchangés)
 // ──────────────────────────────────────────────────────────
 function trRenderChart1() {
   if(trCharts.c1) { trCharts.c1.destroy(); delete trCharts.c1; }
   const canvas = document.getElementById("tr-chart-mois");
   if(!canvas) return;
-
   const daysInMonth = new Date(trYear, trMonth, 0).getDate();
   const today = new Date();
   const maxDay = (trYear===today.getFullYear()&&trMonth===today.getMonth()+1) ? today.getDate() : daysInMonth;
-
   const revByDay = new Array(daysInMonth).fill(0);
   const depByDay = new Array(daysInMonth).fill(0);
-
   trTransactions.forEach(t => {
     const d = new Date(t.date + "T00:00:00");
     if(d.getFullYear()===trYear && d.getMonth()+1===trMonth) {
@@ -2172,7 +2158,6 @@ function trRenderChart1() {
       else if(t.type==="dep") depByDay[day] += t.montant;
     }
   });
-
   const revCum = revByDay.reduce((acc,v,i) => { acc.push((acc[i-1]||0)+v); return acc; }, []).slice(0,maxDay);
   const depCum = depByDay.reduce((acc,v,i) => { acc.push((acc[i-1]||0)+v); return acc; }, []).slice(0,maxDay);
   const labels = Array.from({length:maxDay}, (_,i) => i+1);
@@ -2201,10 +2186,9 @@ function trRenderChart2() {
   if(trCharts.c2) { trCharts.c2.destroy(); delete trCharts.c2; }
   const canvas = document.getElementById("tr-chart-delta");
   if(!canvas) return;
-
+  // trDeltaHistory est trié décroissant, on le reverse pour l'ordre chronologique
   const sorted = [...trDeltaHistory].sort((a,b)=>a.yearMonth.localeCompare(b.yearMonth));
   if(sorted.length === 0) return;
-
   const labels   = sorted.map(d=>`${TR_MOIS[d.mois]} ${String(d.annee).substr(2)}`);
   const data     = sorted.map(d=>d.delta);
   const bgColors = data.map(v=>v>=0?"rgba(26,107,60,.75)":"rgba(204,51,51,.75)");
@@ -2224,8 +2208,11 @@ function trRenderChart2() {
 }
 
 // ──────────────────────────────────────────────────────────
-// SOUS-PAGE : LISTE DES TRANSACTIONS
+// SOUS-PAGE : LISTE DES TRANSACTIONS (inchangé, sauf interactions DB)
 // ──────────────────────────────────────────────────────────
+// Les fonctions trRenderTransactions, trSetFilter, trRenderList restent identiques,
+// car elles ne touchent pas à Firestore/RDB directement (elles utilisent trTransactions).
+// Je les inclus pour que le module soit complet.
 function trRenderTransactions(c) {
   c.innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
@@ -2250,7 +2237,6 @@ function trSetFilter(f, el) {
 function trRenderList() {
   const c = document.getElementById("tr-list-content");
   if(!c) return;
-
   let filtered = [...trTransactions];
   if(trFilter==="rev")    filtered = filtered.filter(t=>t.type==="rev");
   else if(trFilter==="dep") filtered = filtered.filter(t=>t.type==="dep");
@@ -2260,7 +2246,6 @@ function trRenderList() {
     c.innerHTML = `<div class="tr-empty"><span class="tr-empty-ic">🔍</span><div class="tr-empty-t">Aucune transaction</div></div>`;
     return;
   }
-
   // Grouper par date
   const grp = {};
   filtered.forEach(t => { if(!grp[t.date]) grp[t.date]=[]; grp[t.date].push(t); });
@@ -2274,8 +2259,8 @@ function trRenderList() {
     const d  = new Date(date+"T00:00:00");
     html += `<div class="tr-day-hd"><span>${d.toLocaleDateString("fr-FR",{weekday:"long",day:"numeric",month:"long"})}</span>
       <span style="font-size:.64rem">${dR>0?`<span style="color:var(--green)">+${trFmtCFA(dR)}</span> `:""}${dD>0?`<span style="color:var(--red)">-${trFmtCFA(dD)}</span>`:""}</span></div>`;
-
     grp[date].forEach(t => {
+      if(!t) return;
       const catObj = trCategories.find(c=>c.id===t.categorie)||{};
       html += `<div class="tr-txn-item tr-txn-${t.type}">
         <div class="tr-txn-ic tr-txn-ic-${t.type}">${catObj.ic||(t.type==="rev"?"💚":"🔴")}</div>
@@ -2296,7 +2281,7 @@ function trRenderList() {
 }
 
 // ──────────────────────────────────────────────────────────
-// SOUS-PAGE : HISTORIQUE DELTAS
+// SOUS-PAGE : HISTORIQUE DELTAS (inchangé)
 // ──────────────────────────────────────────────────────────
 function trRenderHistorique(c) {
   c.innerHTML = `<div style="font-weight:700;font-size:.88rem;margin-bottom:12px">Historique des clôtures</div><div id="tr-deltas-content"></div>`;
@@ -2307,7 +2292,6 @@ function trRenderDeltas() {
   const c = document.getElementById("tr-deltas-content");
   if(!c) return;
   if(trDeltaHistory.length===0) { c.innerHTML=`<div class="tr-empty"><span class="tr-empty-ic">📊</span><div class="tr-empty-t">Aucune clôture effectuée</div></div>`; return; }
-
   c.innerHTML = '<div class="card"><div class="card-body">' +
     trDeltaHistory.map(d=>{
       const pos = d.delta>=0;
@@ -2323,7 +2307,7 @@ function trRenderDeltas() {
 }
 
 // ──────────────────────────────────────────────────────────
-// SOUS-PAGE : PARAMÈTRES
+// SOUS-PAGE : PARAMÈTRES (inchangé, sauf sauvegarde)
 // ──────────────────────────────────────────────────────────
 function trRenderParams(c) {
   c.innerHTML = `
@@ -2370,11 +2354,13 @@ function trRenderCats() {
 }
 
 function trAddCat() { trCategories.push({id:`cat_${Date.now()}`,nom:"Nouvelle",ic:"📌",type:"both"}); trRenderCats(); trPopulateCatSelect(); }
+
 async function trSaveCats() {
-  if(!currentUser||!trDB||!trFbOk) { toast("Connexion requise."); return; }
-  const batch = trDB.batch();
-  trCategories.forEach(c => { batch.set(trDB.collection(`${TR_COL.CATEGORIES}/${currentUser.uid}/liste`).doc(c.id||`cat_${Date.now()}`), c, {merge:true}); });
-  await batch.commit();
+  if(!currentUser) { toast("Connexion requise."); return; }
+  // Sauvegarde simple en écrasant la liste (avec un objet)
+  const updates = {};
+  trCategories.forEach(c => { updates[`${TR_PATH.CATEGORIES}/${currentUser.uid}/liste/${c.id || `cat_${Date.now()}`}`] = c; });
+  await firebase.database().ref().update(updates);
   trPopulateCatSelect();
   toast("✅ Catégories sauvegardées !");
 }
@@ -2382,12 +2368,14 @@ async function trSaveCats() {
 async function trSaveSeuil() {
   const v = parseFloat(document.getElementById("tr-p-seuil")?.value)||500000;
   trPrefs.seuil = v;
-  if(currentUser&&trDB&&trFbOk) await trDB.collection(TR_COL.PREFS).doc(currentUser.uid).set({seuil:v},{merge:true});
+  if(currentUser) {
+    await firebase.database().ref(`${TR_PATH.PREFS}/${currentUser.uid}`).update({seuil:v});
+  }
   toast("✅ Seuil mis à jour : " + trFmtCFA(v));
 }
 
 // ──────────────────────────────────────────────────────────
-// CRUD TRANSACTIONS
+// CRUD TRANSACTIONS (adapté RTDB)
 // ──────────────────────────────────────────────────────────
 async function trSubmitTransaction() {
   const editId = document.getElementById("tr-f-edit-id").value;
@@ -2403,7 +2391,7 @@ async function trSubmitTransaction() {
   if(!montant) { toast("⚠️ Veuillez saisir un montant.");      return; }
 
   const txnId = editId || `tr_${Date.now()}_${Math.random().toString(36).substr(2,5)}`;
-  const dObj  = new Date(date);
+  const dObj  = new Date(date+"T00:00:00");
   const ym    = trYM(dObj.getFullYear(), dObj.getMonth()+1);
 
   const data = {
@@ -2414,7 +2402,7 @@ async function trSubmitTransaction() {
     offline:false
   };
 
-  const col = `${TR_COL.TRANSACTIONS}/${currentUser.uid}/${ym}/transactions`;
+  const refPath = `${TR_PATH.TRANSACTIONS}/${currentUser.uid}/${ym}/${txnId}`;
 
   if(!trFbOk) {
     data.offline = true;
@@ -2431,8 +2419,7 @@ async function trSubmitTransaction() {
 
   try {
     document.getElementById("tr-submit-btn").disabled = true;
-    await trDB.collection(col).doc(txnId).set(data);
-    // Mettre à jour les agrégats dashboard principal
+    await firebase.database().ref(refPath).set(data);
     await trSyncDashboard(ym);
     trCloseModal("tr-modal-txn");
     toast(trFormType==="rev" ? "💚 Revenu enregistré !" : "🔴 Dépense enregistrée !");
@@ -2451,7 +2438,7 @@ function trEditTxn(id) { const t=trTransactions.find(x=>x.id===id); if(t) trOpen
 
 async function trDeleteTxn(id, ym) {
   if(!confirm("Supprimer cette transaction ?")) return;
-  const col = `${TR_COL.TRANSACTIONS}/${currentUser.uid}/${ym}/transactions`;
+  const refPath = `${TR_PATH.TRANSACTIONS}/${currentUser.uid}/${ym}/${id}`;
   if(!trFbOk) {
     trOfflineQueue.push({type:"delete",data:{yearMonth:ym},id,ym});
     trSaveOfflineQueue();
@@ -2462,7 +2449,7 @@ async function trDeleteTxn(id, ym) {
     return;
   }
   try {
-    await trDB.collection(col).doc(id).delete();
+    await firebase.database().ref(refPath).remove();
     await trSyncDashboard(ym);
     toast("🗑️ Transaction supprimée");
   } catch(e) {
@@ -2471,7 +2458,7 @@ async function trDeleteTxn(id, ym) {
 }
 
 // ──────────────────────────────────────────────────────────
-// CLÔTURE MENSUELLE
+// CLÔTURE MENSUELLE (adapté RTDB avec multi-update)
 // ──────────────────────────────────────────────────────────
 function trOpenClotureConfirm() {
   const pym = trPrevYM();
@@ -2500,100 +2487,79 @@ async function trExecuteCloture() {
   toast("⏳ Clôture en cours…");
 
   try {
-    const srcCol  = `${TR_COL.TRANSACTIONS}/${currentUser.uid}/${pym}/transactions`;
-    const archCol = `${TR_COL.ARCHIVES}/${currentUser.uid}/${pym}/transactions`;
-    const deltaCol= `${TR_COL.DELTAS}/${currentUser.uid}/mois`;
-
-    const snap = await trDB.collection(srcCol).get();
-    if(snap.empty) { toast("ℹ️ Aucune transaction à clôturer."); return; }
-
-    const txns = [];
-    snap.forEach(doc => txns.push({ id:doc.id, ...doc.data() }));
-    const tRev = txns.filter(t=>t.type==="rev").reduce((s,t)=>s+t.montant,0);
-    const tDep = txns.filter(t=>t.type==="dep").reduce((s,t)=>s+t.montant,0);
+    const srcPath  = `${TR_PATH.TRANSACTIONS}/${currentUser.uid}/${pym}`;
+    const archPath = `${TR_PATH.ARCHIVES}/${currentUser.uid}/${pym}`;
+    const deltaPath= `${TR_PATH.DELTAS}/${currentUser.uid}/mois/${pym}`;
+    
+    // Lire les transactions du mois
+    const snap = await firebase.database().ref(srcPath).once("value");
+    const txns = snap.val() || {};
+    const txnsList = Object.entries(txns).map(([id,val])=>({id,...val}));
+    if(txnsList.length===0) { toast("ℹ️ Aucune transaction à clôturer."); return; }
+    
+    const tRev = txnsList.filter(t=>t.type==="rev").reduce((s,t)=>s+t.montant,0);
+    const tDep = txnsList.filter(t=>t.type==="dep").reduce((s,t)=>s+t.montant,0);
     const delta = tRev - tDep;
-
-    // Batch writes (limite 400 par batch)
-    const LIMIT = 400;
-    let cnt = 0, batch = trDB.batch();
-
-    for(const t of txns) {
-      batch.set(trDB.collection(archCol).doc(t.id), { ...t, archivedAt: firebase.firestore.FieldValue.serverTimestamp() });
-      cnt++;
-      if(cnt>=LIMIT) { await batch.commit(); batch=trDB.batch(); cnt=0; }
-    }
-    for(const t of txns) {
-      batch.delete(trDB.collection(srcCol).doc(t.id));
-      cnt++;
-      if(cnt>=LIMIT) { await batch.commit(); batch=trDB.batch(); cnt=0; }
-    }
-
+    
+    // Construction d'un update atomique (migrer + delta)
+    const updates = {};
+    // Archiver chaque transaction
+    txnsList.forEach(t => {
+      updates[`${archPath}/${t.id}`] = { ...t, archivedAt: firebase.database.ServerValue.TIMESTAMP };
+    });
+    // Supprimer les transactions source
+    updates[srcPath] = null;
+    
     // Enregistrer le delta
-    batch.set(trDB.collection(deltaCol).doc(pym), {
+    updates[deltaPath] = {
       yearMonth:pym, annee:py, mois:pm, moisNom:TR_MOISL[pm],
       totalRevenus:tRev, totalDepenses:tDep, delta,
       type:delta>=0?"surplus":"deficit",
-      nbTransactions:txns.length,
-      clotureLe:firebase.firestore.FieldValue.serverTimestamp(),
-      cloturePar:currentUser.uid
-    });
-    cnt++;
-
-    await batch.commit();
-    await trSyncDashboard(pym, { totalRev:tRev, totalDep:tDep, delta, cloture:true });
+      nbTransactions:txnsList.length,
+      clotureLe: firebase.database.ServerValue.TIMESTAMP,
+      cloturePar: currentUser.uid
+    };
+    
+    await firebase.database().ref().update(updates);
+    await trSyncDashboard(pym);
     toast(`✅ Clôture effectuée ! Delta : ${delta>=0?"+":""}${trFmtCFA(delta)}`);
     trRenderPage();
-
   } catch(e) {
-    console.error("[Trésorerie] Clôture:", e);
+    console.error("[Trésorerie RTDB] Clôture:", e);
     toast("❌ Erreur clôture : " + e.message);
   }
 }
 
 // ──────────────────────────────────────────────────────────
-// SYNCDASHBOARDMASTER — COHÉRENCE INTER-MODULES
+// SYNCDASHBOARDMASTER (inchangé, mais utilise RTDB)
 // ──────────────────────────────────────────────────────────
-/**
- * Synchronise les agrégats Trésorerie avec le Dashboard principal FSEYE.
- * Utilise un batch write Firestore pour garantir l'atomicité.
- * ⚙️  Modifiez les chemins si votre Dashboard utilise une structure différente.
- */
 async function trSyncDashboard(yearMonth, extraData = null) {
-  if(!currentUser || !trDB || !trFbOk) return;
+  if(!currentUser) return;
   try {
-    const col = `${TR_COL.TRANSACTIONS}/${currentUser.uid}/${yearMonth}/transactions`;
-    const snap = await trDB.collection(col).get();
+    const path = `${TR_PATH.TRANSACTIONS}/${currentUser.uid}/${yearMonth}`;
+    const snap = await firebase.database().ref(path).once("value");
+    const data = snap.val() || {};
     let tRev=0, tDep=0;
-    snap.forEach(doc => { const t=doc.data(); if(t.type==="rev") tRev+=t.montant; else if(t.type==="dep") tDep+=t.montant; });
+    Object.values(data).forEach(t => { if(t.type==="rev") tRev+=t.montant; else if(t.type==="dep") tDep+=t.montant; });
     const delta = tRev - tDep;
 
-    const agregRef = trDB.collection(TR_COL.AGREGATS).doc(currentUser.uid);
-    const batch    = trDB.batch();
-
-    // Mise à jour des agrégats mensuels
-    batch.set(agregRef, {
-      [`tresorerie.${yearMonth}.totalRevenus`]:  tRev,
-      [`tresorerie.${yearMonth}.totalDepenses`]: tDep,
-      [`tresorerie.${yearMonth}.delta`]:         delta,
-      [`tresorerie.${yearMonth}.nbTransactions`]:snap.size,
-      [`tresorerie.${yearMonth}.updatedAt`]:     firebase.firestore.FieldValue.serverTimestamp(),
-      "tresorerie.lastSync": firebase.firestore.FieldValue.serverTimestamp()
-    }, { merge:true });
-
-    // ⚙️ INTERCONNEXION : Si votre Dashboard principal FSEYE utilise
-    //    une collection d'agrégats différente, ajoutez-la ici.
-    //    Exemple : batch.set(db.collection("FSEYE_Dashboard").doc(uid), {...})
-    //    Les données tRev, tDep, delta sont disponibles pour injection.
-
-    await batch.commit();
-    console.log(`[trSyncDashboard] ✅ ${yearMonth} | Rev:${tRev} Dep:${tDep} Delta:${delta}`);
+    const agregRef = firebase.database().ref(`${TR_PATH.AGREGATS}/${currentUser.uid}`);
+    const updates = {};
+    updates[`tresorerie/${yearMonth}/totalRevenus`]   = tRev;
+    updates[`tresorerie/${yearMonth}/totalDepenses`]  = tDep;
+    updates[`tresorerie/${yearMonth}/delta`]          = delta;
+    updates[`tresorerie/${yearMonth}/nbTransactions`] = Object.keys(data).length;
+    updates[`tresorerie/${yearMonth}/updatedAt`]      = firebase.database.ServerValue.TIMESTAMP;
+    updates[`tresorerie/lastSync`]                    = firebase.database.ServerValue.TIMESTAMP;
+    await agregRef.update(updates);
+    console.log(`[trSyncDashboard] ✅ ${yearMonth}`);
   } catch(e) {
     console.error("[trSyncDashboard] ❌", e);
   }
 }
 
 // ──────────────────────────────────────────────────────────
-// FORMULAIRE (MODAL)
+// FORMULAIRE (MODAL) — inchangé
 // ──────────────────────────────────────────────────────────
 function trOpenForm(type, txn=null) {
   trFormType = type;
@@ -2678,13 +2644,11 @@ function trEsc(s) {
 // ──────────────────────────────────────────────────────────
 // HOOK : S'initialiser quand l'utilisateur se connecte
 // ──────────────────────────────────────────────────────────
-// On surcharge initApp pour ajouter l'init Trésorerie
 const _origInitApp_tr = window.initApp || function(){};
 window.initApp = function(withFirebase) {
   _origInitApp_tr(withFirebase);
   if(withFirebase) trInit();
 };
-// Également si l'utilisateur est déjà connecté au chargement
 if(typeof currentUser !== "undefined" && currentUser) trInit();
 
 </script>
