@@ -9,6 +9,7 @@
 <meta name="apple-mobile-web-app-title" content="FSEYE">
 <meta name="theme-color" content="#1B3A2D">
 <title>FSEYE · Budget Familial</title>
+<link id="pwa-manifest-link" rel="manifest">
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -231,6 +232,12 @@ input,button,select{font-family:inherit;-webkit-tap-highlight-color:transparent}
   .mbox{border-radius:16px;margin:auto}
   .mbg{align-items:center;padding-bottom:0}
   .mob-only{display:none!important}
+  /* Desktop: saisie grid optimisée */
+  .pg-saisie-grid{display:grid;grid-template-columns:220px 1fr;gap:14px;align-items:start}
+  .saisie-tabs-wrap{position:sticky;top:60px;background:var(--bg);padding-top:4px;z-index:10}
+  /* Trésorerie desktop */
+  .tr-desktop-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .tr-desktop-grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
 }
 @media(max-width:767px){
   .main{margin-left:0;padding-bottom:68px}
@@ -239,7 +246,37 @@ input,button,select{font-family:inherit;-webkit-tap-highlight-color:transparent}
   .sb-ov.open{display:block}
   .desk-only{display:none!important}
   .mpills{display:none}
+  /* Mobile: compacité */
+  .pg{padding:10px 12px;padding-bottom:calc(68px + var(--sab))}
+  .kcard-b{padding:9px 11px}
+  .kcard-v{font-size:.88rem}
+  .cbl{padding:9px}
+  .tbl th,.tbl td{padding:5px 7px}
+  .tr-action-grid{grid-template-columns:1fr 1fr;gap:8px}
+  .tr-big-btn{min-height:80px;padding:14px 10px}
+  .tr-big-btn-ic{font-size:1.5rem}
+  .tr-big-btn-lbl{font-size:.72rem}
+  .card-hd{padding:10px 12px}
+  .cp{padding:11px 12px}
+  .btn{padding:7px 11px;min-height:38px}
+  /* Supprimer marges excessives mobile */
+  .kpi-g{gap:7px;margin-bottom:9px}
+  .cbl-g{gap:6px;margin-bottom:9px}
 }
+/* ═══════════════ BADGE TRESORERIE DASHBOARD ═══════════════ */
+.tr-dash-badge{display:inline-flex;align-items:center;gap:4px;padding:2px 7px;border-radius:99px;font-size:.6rem;font-weight:700;background:var(--pl);color:var(--purple);border:1px solid var(--purple);margin-left:6px;vertical-align:middle}
+/* ═══════════════ PWA A2HS BANNER ═══════════════ */
+#pwa-banner{position:fixed;bottom:calc(68px + var(--sab) + 8px);left:12px;right:12px;z-index:8000;background:var(--green);color:#fff;border-radius:12px;padding:12px 16px;display:none;align-items:center;gap:10px;box-shadow:0 4px 20px rgba(0,0,0,.25)}
+#pwa-banner.show{display:flex}
+.pwa-icon{font-size:1.6rem;flex-shrink:0}
+.pwa-txt{flex:1}
+.pwa-ttl{font-weight:800;font-size:.82rem}
+.pwa-sub{font-size:.68rem;opacity:.85}
+.pwa-btn{background:rgba(255,255,255,.25);border:1.5px solid rgba(255,255,255,.5);color:#fff;border-radius:8px;padding:7px 12px;font-weight:700;font-size:.73rem;cursor:pointer;font-family:inherit;white-space:nowrap}
+.pwa-close{background:none;border:none;color:rgba(255,255,255,.7);font-size:1.1rem;cursor:pointer;padding:4px;flex-shrink:0}
+/* ═══════════════ ICON PREVIEW PWA ═══════════════ */
+.pwa-icon-preview{width:72px;height:72px;border-radius:16px;object-fit:cover;border:2px solid var(--brd);display:block;margin:0 auto 10px}
+.pwa-icon-upload{display:none}
 
 /* ═══════════════ MODULE TRÉSORERIE ═══════════════ */
 .tr-action-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px}
@@ -376,6 +413,17 @@ input,button,select{font-family:inherit;-webkit-tap-highlight-color:transparent}
   <div class="loading-brand">FSEYE</div>
   <div class="spinner"></div>
   <div style="font-size:.73rem;color:var(--t3)">Chargement...</div>
+</div>
+
+<!-- ═══ PWA A2HS BANNER ═══ -->
+<div id="pwa-banner">
+  <span class="pwa-icon" id="pwa-banner-ic">📲</span>
+  <div class="pwa-txt">
+    <div class="pwa-ttl">Installer FSEYE</div>
+    <div class="pwa-sub">Ajouter à l'écran d'accueil pour un accès rapide</div>
+  </div>
+  <button class="pwa-btn" onclick="pwaTriggerInstall()">Installer</button>
+  <button class="pwa-close" onclick="pwaDismiss()">✕</button>
 </div>
 
 <!-- ═══ LOGIN ═══ -->
@@ -516,14 +564,14 @@ input,button,select{font-family:inherit;-webkit-tap-highlight-color:transparent}
 // ═══════════════════════════════════════════════════════════════
 // FIREBASE CONFIGURATION — REMPLACER PAR VOS VRAIES CLÉS
 // ═══════════════════════════════════════════════════════════════
-const firebaseConfig = {
-  apiKey: "AIzaSyDuvgAdgGumtDS3h9IYE3KURxuLSg6geyM",
-  authDomain: "fseye-financeperso.firebaseapp.com",
-  databaseURL: "https://fseye-financeperso-default-rtdb.europe-west1.firebasedatabase.app",
-  projectId: "fseye-financeperso",
-  storageBucket: "fseye-financeperso.firebasestorage.app",
+const FIREBASE_CONFIG = {
+  apiKey:            "AIzaSyDuvgAdgGumtDS3h9IYE3KURxuLSg6geyM",
+  authDomain:        "fseye-financeperso.firebaseapp.com",
+  databaseURL:       "https://fseye-financeperso-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId:         "fseye-financeperso",
+  storageBucket:     "fseye-financeperso.firebasestorage.app",
   messagingSenderId: "469849018074",
-  appId: "1:469849018074:web:80d908a80285d53ea21fe3"
+  appId:             "1:469849018074:web:80d908a80285d53ea21fe3"
 };
 
 // Emails autorisés (modifier si besoin)
@@ -623,6 +671,13 @@ function initFirebase() {
   if(isLocalFile) {
     console.warn("Fichier local — Firebase désactivé");
     showApp(false);
+    return;
+  }
+  // Vérifier que les scripts Firebase CDN sont bien chargés
+  if(typeof firebase === "undefined") {
+    console.error("[FSEYE] Firebase SDK non disponible — vérifiez votre connexion ou désactivez votre bloqueur de publicités.");
+    document.getElementById("loading").style.display = "none";
+    showLogin("Firebase non disponible — activez les scripts CDN ou désactivez votre bloqueur de pubs.");
     return;
   }
   try {
@@ -987,9 +1042,15 @@ function renderDashboard() {
     {ic:"⚖️",lb:"Non-essentielles",         v:mt.actual>0?nvPct+"%":"—",       col:nvPct>40?"#CC3333":nvPct>25?"#C97B0A":"#1A6B3C"},
     {ic:bal>=0?"🏦":"⚠️",lb:"Solde mensuel",v:rev>0?(sgn(bal)+fmtCFA(Math.abs(bal))):"—",col:bal>=0?"#1A6B3C":"#CC3333"}
   ];
+  // Compter les entrées Trésorerie ce mois
+  const trEntries = getEntries(yr).filter(e => e._isTresorerie);
+  const trDepTotal = trEntries.reduce((s,e) => s + (getMD(e,mo).actual||0), 0);
 
   // Alerts
   let alertHtml = "";
+  if(trDepTotal > 0) {
+    alertHtml += `<div class="alert-b al-g" style="margin-bottom:10px">💰 <div><strong>Trésorerie</strong> — Dépenses imprévues ce mois : <strong>${fmtCFA(trDepTotal)}</strong> <span class="tr-dash-badge">Flux Réel</span></div></div>`;
+  }
   const overruns = getEntries(yr).filter(e=>{
     const md=getMD(e,mo); if(!md.planned) return false;
     return md.actual > md.planned*thresh/100;
@@ -1248,17 +1309,33 @@ function delRevLine(i) {
 }
 
 function renderDepBloc(c, ctr) {
-  const entries = getEntries(yr);
-  const rows    = entries.map((e,i)=>({...e,_idx:i})).filter(e=>e.centre===ctr);
+  const allEntries = getEntries(yr);
+  const rows    = allEntries.map((e,i)=>({...e,_idx:i})).filter(e=>e.centre===ctr && !e._isTresorerie);
+  const trRows  = allEntries.map((e,i)=>({...e,_idx:i})).filter(e=>e.centre===ctr && e._isTresorerie);
   const cfg     = CTR_CFG[ctr];
   const thresh  = getThresh();
   const tP = rows.reduce((s,e)=>s+(getMD(e,mo).planned||0),0);
   const tA = rows.reduce((s,e)=>s+(getMD(e,mo).actual||0),0);
+  const trA= trRows.reduce((s,e)=>s+(getMD(e,mo).actual||0),0);
   const pct= tP>0?Math.round(tA/tP*100):0;
+
+  const trSection = trRows.length > 0 ? `
+    <div style="background:var(--pl);border-radius:0;padding:9px 14px;border-top:1px solid var(--brd)">
+      <div style="font-size:.64rem;font-weight:700;color:var(--purple);margin-bottom:6px;letter-spacing:.04em">🔗 FLUX TRÉSORERIE (auto)</div>
+      ${trRows.map(e=>{
+        const a = getMD(e,mo).actual||0;
+        return `<div style="display:flex;justify-content:space-between;align-items:center;font-size:.73rem;padding:3px 0;border-bottom:1px solid rgba(0,0,0,.05)">
+          <span style="color:var(--t1);font-weight:600;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e.rubrique.substring(0,40)}</span>
+          <span style="font-family:'JetBrains Mono',monospace;color:var(--red);font-weight:700;margin-left:8px">${fmtCFA(a)}</span>
+          <span class="tr-dash-badge" style="margin-left:6px">TR</span>
+        </div>`;
+      }).join("")}
+      <div style="text-align:right;font-size:.7rem;font-weight:800;color:var(--purple);margin-top:6px">Total : ${fmtCFA(trA)}</div>
+    </div>` : "";
 
   c.innerHTML = `<div class="card" style="overflow:hidden">
     <div class="card-hd">
-      <div><div class="ct">${cfg.ic} ${cfg.name}</div><div class="cs">${rows.length} rubriques</div></div>
+      <div><div class="ct">${cfg.ic} ${cfg.name}</div><div class="cs">${rows.length} rubriques${trRows.length>0?" + "+trRows.length+" auto-TR":""}</div></div>
       <button class="btn bp bsm" onclick="addDepLine('${ctr}')">+ Ligne</button>
     </div>
     <div style="overflow-x:auto">
@@ -1294,11 +1371,12 @@ function renderDepBloc(c, ctr) {
         </tbody>
       </table>
     </div>
+    ${trSection}
     <div class="tot-bar">
       <span class="tot-lbl">${cfg.name}</span>
       <div style="display:flex;gap:12px;align-items:center">
         <div><div class="tot-s">Planifié</div><div class="tot-v" style="font-size:.95rem">${fmtCFA(tP)}</div></div>
-        <div><div class="tot-s">Réalisé</div><div class="tot-v">${fmtCFA(tA)}</div></div>
+        <div><div class="tot-s">Réalisé</div><div class="tot-v">${fmtCFA(tA+trA)}</div></div>
         ${tP>0?`<span style="font-size:.82rem;font-weight:900;color:rgba(255,255,255,.85)">${pct}%</span>`:""}
       </div>
     </div>
@@ -1624,6 +1702,7 @@ function renderParamsTab() {
 }
 
 function paramsIdentity(c) {
+  const iconB64 = localStorage.getItem("fseye_pwa_icon");
   c.innerHTML = `<div class="card" style="padding:18px">
     <div style="font-weight:700;font-size:.84rem;margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid var(--brd)">Nom & Sous-titre</div>
     <label class="lbl-s">Nom de l'application</label>
@@ -1632,6 +1711,24 @@ function paramsIdentity(c) {
     <input id="p-tag" class="fld" value="${prefs.tagline||"Budget Familial"}" placeholder="Budget Familial" style="margin-bottom:16px">
     ${currentUser?`<div style="font-size:.7rem;color:var(--t3);margin-bottom:14px">Compte : ${currentUser.email}</div>`:""}
     <button class="btn bp bfw" onclick="saveIdentity()">💾 Enregistrer</button>
+  </div>
+  <div class="card" style="padding:18px;margin-top:12px">
+    <div style="font-weight:700;font-size:.84rem;margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid var(--brd)">📲 Icône Application (PWA)</div>
+    <div style="text-align:center;margin-bottom:12px">
+      ${iconB64
+        ? `<img src="${iconB64}" class="pwa-icon-preview" id="pwa-preview-img" alt="Icône app">`
+        : `<div style="width:72px;height:72px;border-radius:16px;background:var(--sidebar);display:flex;align-items:center;justify-content:center;font-size:2.2rem;margin:0 auto 10px">💰</div>`
+      }
+      <div style="font-size:.68rem;color:var(--t3);margin-bottom:10px">${iconB64?"Icône personnalisée active":"Icône par défaut"}</div>
+    </div>
+    <label class="btn bp bfw" style="cursor:pointer;justify-content:center">
+      📁 Choisir une image (PNG / JPG)
+      <input type="file" accept="image/png,image/jpeg,image/webp" class="pwa-icon-upload" onchange="pwaUploadIcon(this)">
+    </label>
+    ${iconB64?`<button class="btn bg bfw" style="margin-top:8px" onclick="localStorage.removeItem('fseye_pwa_icon');pwaUpdateManifest();renderParamsTab();toast('Icône réinitialisée')">🗑️ Supprimer l'icône</button>`:""}
+    <div style="font-size:.65rem;color:var(--t3);margin-top:10px;text-align:center">L'icône sera utilisée lors de l'installation sur l'écran d'accueil Android/iOS</div>
+    ${!deferredPWAPrompt?"":""}
+    <button class="btn" style="margin-top:10px;width:100%;justify-content:center;background:var(--gl);color:var(--green);border-color:var(--green)" onclick="pwaTriggerInstall()">📲 Installer FSEYE sur cet appareil</button>
   </div>`;
 }
 
@@ -1645,7 +1742,7 @@ function saveIdentity() {
 }
 
 function paramsRubriques(c) {
-  const entries = getEntries(yr);
+  const entries = getEntries(yr).filter(e => !e._isTresorerie); // Masquer entrées auto-Trésorerie
   const cats    = prefs.cats || [];
   c.innerHTML = `<div class="card" style="overflow:hidden">
     <div class="card-hd">
@@ -1808,7 +1905,102 @@ function exportXL() {
 // ═══════════════════════════════════════════════════════════════
 window.addEventListener("load", () => {
   initFirebase();
+  initPWA();
 });
+
+// ═══════════════════════════════════════════════════════════════
+// PWA — Manifest dynamique + Service Worker + A2HS
+// ═══════════════════════════════════════════════════════════════
+let deferredPWAPrompt = null;
+
+function initPWA() {
+  // ── Manifest dynamique (suffisant pour A2HS Android sans SW) ──
+  pwaUpdateManifest();
+
+  // ── Service Worker : non enregistrable depuis un fichier HTML unique
+  //    (les navigateurs bloquent les SW via blob: URL).
+  //    Le manifest seul permet l'installation sur Android/Chrome. ──
+
+  // ── A2HS Banner ─────────────────────────────────────────────
+  window.addEventListener("beforeinstallprompt", e => {
+    e.preventDefault();
+    deferredPWAPrompt = e;
+    // Afficher banner après 3s si non ignoré
+    setTimeout(() => {
+      if(!localStorage.getItem("fseye_pwa_dismissed")) {
+        document.getElementById("pwa-banner")?.classList.add("show");
+      }
+    }, 3000);
+  });
+
+  window.addEventListener("appinstalled", () => {
+    document.getElementById("pwa-banner")?.classList.remove("show");
+    deferredPWAPrompt = null;
+    toast("✅ FSEYE installé sur votre écran d'accueil !");
+  });
+}
+
+function pwaUpdateManifest() {
+  const iconB64 = localStorage.getItem("fseye_pwa_icon");
+  const iconUrl = iconB64 || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%231B3A2D'/%3E%3Ctext y='.9em' font-size='70' x='12'%3E💰%3C/text%3E%3C/svg%3E";
+  const manifest = {
+    name: (document.getElementById("sb-name")?.textContent || "FSEYE") + " Budget",
+    short_name: "FSEYE",
+    description: "Gestion budgétaire familiale — Sénégal",
+    start_url: window.location.href,
+    display: "standalone",
+    background_color: "#F2F0EB",
+    theme_color: "#1B3A2D",
+    orientation: "portrait-primary",
+    icons: [
+      {src: iconUrl, sizes: "192x192", type: "image/png", purpose: "any maskable"},
+      {src: iconUrl, sizes: "512x512", type: "image/png", purpose: "any maskable"}
+    ]
+  };
+  const blob    = new Blob([JSON.stringify(manifest)], {type:"application/manifest+json"});
+  const url     = URL.createObjectURL(blob);
+  let link      = document.getElementById("pwa-manifest-link");
+  if(link) link.href = url;
+  // Mettre à jour l'icône du banner si custom
+  if(iconB64) {
+    const ic = document.getElementById("pwa-banner-ic");
+    if(ic) ic.innerHTML = `<img src="${iconB64}" style="width:32px;height:32px;border-radius:8px;object-fit:cover">`;
+  }
+}
+
+function pwaTriggerInstall() {
+  if(!deferredPWAPrompt) {
+    toast("ℹ️ Utilisez le menu du navigateur → Ajouter à l'écran d'accueil");
+    return;
+  }
+  deferredPWAPrompt.prompt();
+  deferredPWAPrompt.userChoice.then(c => {
+    deferredPWAPrompt = null;
+    if(c.outcome === "accepted") toast("✅ Installation acceptée !");
+    document.getElementById("pwa-banner")?.classList.remove("show");
+  });
+}
+
+function pwaDismiss() {
+  document.getElementById("pwa-banner")?.classList.remove("show");
+  localStorage.setItem("fseye_pwa_dismissed", "1");
+}
+
+function pwaUploadIcon(input) {
+  const file = input.files[0];
+  if(!file) return;
+  if(!file.type.startsWith("image/")) { toast("⚠️ Format image requis (PNG ou JPG)"); return; }
+  const reader = new FileReader();
+  reader.onload = e => {
+    const b64 = e.target.result;
+    localStorage.setItem("fseye_pwa_icon", b64);
+    pwaUpdateManifest();
+    renderParamsTab(); // Rafraîchir pour afficher preview
+    toast("✅ Icône PWA mise à jour !");
+  };
+  reader.readAsDataURL(file);
+}
+
 
 // ════════════════════════════════════════════════════════════
 // MODULE TRÉSORERIE — Gestion des transactions financières
@@ -1864,6 +2056,10 @@ const TR_MODE_IC    = { wave:"📱", orange:"🟠", banque:"🏦", espece:"💵"
 // ──────────────────────────────────────────────────────────
 function trInit() {
   if(!currentUser) return;
+  if(typeof firebase === "undefined" || !fbDB) {
+    console.warn("[Trésorerie] Firebase non disponible — module désactivé");
+    return;
+  }
   try {
     // La RTDB est déjà connectée via la config globale (fbDB)
     // On écoute la connectivité
@@ -2058,8 +2254,8 @@ function trRenderDashboard(c) {
   const canCloture = !isCurrentMonth || today.getDate() === 1;
 
   c.innerHTML = `
-    <!-- Boutons identiques à l'original -->
-    <div class="tr-action-grid">
+    <!-- Boutons action -->
+    <div class="tr-action-grid" style="margin-bottom:12px">
       <button class="tr-big-btn tr-btn-rev" onclick="trOpenForm('rev')">
         <span class="tr-big-btn-ic">💚</span>
         <span class="tr-big-btn-lbl">Nouveau<br>Revenu</span>
@@ -2070,17 +2266,19 @@ function trRenderDashboard(c) {
       </button>
     </div>
     <div class="tr-kpi-strip" id="tr-kpi-strip"></div>
-    <!-- Graphiques -->
-    <div class="card" style="margin-bottom:12px">
-      <div class="card-hd">
-        <div><div class="card-title">📊 Évolution du mois en cours</div><div class="card-sub">Revenus vs Dépenses — cumul journalier</div></div>
-        <div class="tr-chart-alert" id="tr-chart-alert">⚠️ Seuil!</div>
+    <!-- Graphiques : grille 2 colonnes sur desktop -->
+    <div class="tr-desktop-grid" style="margin-bottom:12px">
+      <div class="card">
+        <div class="card-hd">
+          <div><div class="card-title">📊 Évolution du mois</div><div class="card-sub">Revenus vs Dépenses</div></div>
+          <div class="tr-chart-alert" id="tr-chart-alert">⚠️ Seuil!</div>
+        </div>
+        <div class="card-body" style="padding-bottom:10px"><div class="tr-chart-wrap"><canvas id="tr-chart-mois"></canvas></div></div>
       </div>
-      <div class="card-body" style="padding-bottom:10px"><div class="tr-chart-wrap"><canvas id="tr-chart-mois"></canvas></div></div>
-    </div>
-    <div class="card" style="margin-bottom:12px">
-      <div class="card-hd"><div><div class="card-title">📊 Capacité d'investissement</div><div class="card-sub">Surplus (▲vert) vs Déficit (▼rouge) par mois</div></div></div>
-      <div class="card-body" style="padding-bottom:10px"><div class="tr-chart-wrap"><canvas id="tr-chart-delta"></canvas></div></div>
+      <div class="card">
+        <div class="card-hd"><div><div class="card-title">📊 Capacité d'investissement</div><div class="card-sub">Surplus (▲) vs Déficit (▼)</div></div></div>
+        <div class="card-body" style="padding-bottom:10px"><div class="tr-chart-wrap"><canvas id="tr-chart-delta"></canvas></div></div>
+      </div>
     </div>
     <!-- Navigation mois + Clôture -->
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
@@ -2093,6 +2291,10 @@ function trRenderDashboard(c) {
       <div style="font-size:.7rem;opacity:.7;margin-bottom:11px;line-height:1.5">Archiver les transactions du mois précédent, calculer le delta et mettre à jour les agrégats.</div>
       <button class="tr-cloture-btn" onclick="trOpenClotureConfirm()">🔒 Clôturer ${TR_MOISL[trMonth===1?12:trMonth-1]}</button>
     </div>` : ""}
+    <!-- Badge liaison Dashboard -->
+    <div style="margin-top:10px;font-size:.65rem;color:var(--t3);display:flex;align-items:center;gap:5px;justify-content:center">
+      <span>🔗</span> Les dépenses saisies ici apparaissent automatiquement dans <strong>Saisie Mensuelle</strong> (Centre : Autres Dépenses)
+    </div>
   `;
 
   trRenderKPIs();
@@ -2421,6 +2623,14 @@ async function trSubmitTransaction() {
     document.getElementById("tr-submit-btn").disabled = true;
     await firebase.database().ref(refPath).set(data);
     await trSyncDashboard(ym);
+    // ▶ Sync flux réel vers Dashboard principal (dep uniquement)
+    if(trFormType === "dep") {
+      if(editId) await syncTrDepRemoveEntry(editId, txnId, ym, data);
+      else await syncTrDepAddEntry(data);
+    } else if(editId) {
+      // Si on édite un ancien dep devenu rev, supprimer l'entrée synthétique
+      await syncTrDepRemoveEntry(editId, null, ym, null);
+    }
     trCloseModal("tr-modal-txn");
     toast(trFormType==="rev" ? "💚 Revenu enregistré !" : "🔴 Dépense enregistrée !");
   } catch(e) {
@@ -2451,6 +2661,8 @@ async function trDeleteTxn(id, ym) {
   try {
     await firebase.database().ref(refPath).remove();
     await trSyncDashboard(ym);
+    // ▶ Supprimer entrée synthétique du Dashboard principal
+    await syncTrDepRemoveEntry(id, null, ym, null);
     toast("🗑️ Transaction supprimée");
   } catch(e) {
     toast("❌ Erreur : " + e.message);
@@ -2458,7 +2670,90 @@ async function trDeleteTxn(id, ym) {
 }
 
 // ──────────────────────────────────────────────────────────
-// CLÔTURE MENSUELLE (adapté RTDB avec multi-update)
+// SYNC TRÉSORERIE → DASHBOARD PRINCIPAL (Flux Réel)
+// ──────────────────────────────────────────────────────────
+// Chaque dépense Trésorerie crée/màj une entrée synthétique dans D[year].entries
+// Centre : AUTRES DEPENSES | Rubrique : label de la transaction | planned=0
+const TR_SYNTH_PREFIX = "_tr_";
+
+function syncTrGetSynthId(txnId) {
+  return TR_SYNTH_PREFIX + txnId;
+}
+
+function syncTrBuildEntry(txn) {
+  const [y, m] = txn.yearMonth.split("-").map(Number);
+  const mKey = MK[m - 1]; // ex: "jan", "fev", etc.
+  const synthId = syncTrGetSynthId(txn.id);
+  // Construire les monthly data : 0 pour tous les mois sauf le mois de la txn
+  const monthly = MK.map(mk => ({
+    month: mk,
+    planned: 0,
+    actual: mk === mKey ? txn.montant : 0
+  }));
+  return {
+    id: synthId,
+    rubrique: txn.designation || "Trésorerie",
+    centre: "AUTRES DEPENSES",
+    categorie: "IMPORTANTE",
+    monthly,
+    _isTresorerie: true,
+    _trTxnId: txn.id
+  };
+}
+
+async function syncTrDepAddEntry(txn) {
+  if(!currentUser || !fbDB) return;
+  const [yearStr] = txn.yearMonth.split("-");
+  const year = yearStr;
+  // S'assurer que l'année existe dans D
+  if(!D[year]) {
+    D[year] = { entries:[], monthly_totals:{}, total_planned:0, total_actual:0, ecart:0, by_centre:{}, by_categorie:{} };
+    MK.forEach(m => { D[year].monthly_totals[m] = {planned:0, actual:0}; });
+  }
+  const entry = syncTrBuildEntry(txn);
+  const synthId = syncTrGetSynthId(txn.id);
+  // Remplacer si existe déjà (édition)
+  const idx = D[year].entries.findIndex(e => e.id === synthId);
+  if(idx >= 0) D[year].entries[idx] = entry;
+  else D[year].entries.push(entry);
+  recompute(year);
+  await pushToFirebaseAsync();
+  refreshActivePage();
+}
+
+async function syncTrDepRemoveEntry(oldTxnId, newTxnId, ym, newData) {
+  if(!currentUser || !fbDB) return;
+  const [yearStr] = ym.split("-");
+  const year = yearStr;
+  if(!D[year]) return;
+  const synthId = syncTrGetSynthId(oldTxnId);
+  const idx = D[year].entries.findIndex(e => e.id === synthId);
+  if(idx >= 0) D[year].entries.splice(idx, 1);
+  // Si c'est une édition (nouveau txnId différent), réajouter
+  if(newTxnId && newTxnId !== oldTxnId && newData && newData.type === "dep") {
+    const newEntry = syncTrBuildEntry({...newData, id: newTxnId});
+    D[year].entries.push(newEntry);
+  } else if(newTxnId && newData && newData.type === "dep") {
+    // Même ID mais montant/date modifié
+    const newEntry = syncTrBuildEntry(newData);
+    D[year].entries.push(newEntry);
+  }
+  recompute(year);
+  await pushToFirebaseAsync();
+  refreshActivePage();
+}
+
+function pushToFirebaseAsync() {
+  return new Promise((resolve) => {
+    if(!currentUser || !fbDB) { resolve(); return; }
+    const ref = fbDB.ref("fseye/" + currentUser.uid);
+    ref.set({
+      years: D, revs, comments, prefs,
+      lastUpdated: firebase.database.ServerValue.TIMESTAMP
+    }).then(resolve).catch(e => { console.warn("[syncTr] push error", e); resolve(); });
+  });
+}
+
 // ──────────────────────────────────────────────────────────
 function trOpenClotureConfirm() {
   const pym = trPrevYM();
@@ -2647,9 +2942,10 @@ function trEsc(s) {
 const _origInitApp_tr = window.initApp || function(){};
 window.initApp = function(withFirebase) {
   _origInitApp_tr(withFirebase);
-  if(withFirebase) trInit();
+  if(withFirebase && !trListeners.length) trInit();
 };
-if(typeof currentUser !== "undefined" && currentUser) trInit();
+// Appel de sécurité seulement si Firebase déjà prêt ET utilisateur connecté
+if(typeof currentUser !== "undefined" && currentUser && typeof firebase !== "undefined") trInit();
 
 </script>
 
