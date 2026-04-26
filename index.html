@@ -164,6 +164,14 @@ input,button,select{font-family:inherit;-webkit-tap-highlight-color:transparent}
 .tbl-hd td{background:var(--gl);font-size:.59rem;font-weight:800;text-transform:uppercase;letter-spacing:1.2px;color:var(--green)}
 .tbl-ov td{background:rgba(204,51,51,.04)}
 .tbl-wn td{background:rgba(201,123,10,.04)}
+/* ── Commentaire par rubrique ── */
+.note-row td{padding:0!important;border-bottom:none}
+.note-wrap{max-height:0;overflow:hidden;transition:max-height .25s ease,padding .2s ease;padding:0 10px}
+.note-wrap.open{max-height:120px;padding:6px 10px 8px}
+.note-ta{width:100%;box-sizing:border-box;border:1px solid var(--brd);border-radius:7px;padding:6px 9px;font-size:.72rem;font-family:inherit;background:var(--bg);color:var(--t1);resize:vertical;min-height:44px;outline:none;line-height:1.5}
+.note-ta:focus{border-color:var(--purple);box-shadow:0 0 0 2px var(--pl)}
+.note-btn{font-size:.68rem;padding:3px 7px;min-height:28px;border-radius:6px;cursor:pointer;border:1px solid var(--brd);background:var(--bg);color:var(--t2);display:inline-flex;align-items:center;gap:3px;transition:all .15s}
+.note-btn.has-note{background:var(--pl);color:var(--purple);border-color:var(--purple)}
 
 /* ═══════════════ TOTAL BAR ═══════════════ */
 .tot-bar{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;background:var(--green);border-radius:0 0 12px 12px}
@@ -278,13 +286,16 @@ input,button,select{font-family:inherit;-webkit-tap-highlight-color:transparent}
 .pwa-icon-preview{width:72px;height:72px;border-radius:16px;object-fit:cover;border:2px solid var(--brd);display:block;margin:0 auto 10px}
 .pwa-icon-upload{display:none}
 
-/* ═══════════════ MODULE TRÉSORERIE ═══════════════ */
+/* ═══════════════════════════════════════════════════════════════
+   MODULE TRÉSORERIE — Layout PC & Mobile
+   ════════════════════════════════════════════════════════════════ */
+
+/* ── Boutons d'action ── */
 .tr-action-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px}
 .tr-big-btn{
   display:flex;flex-direction:column;align-items:center;justify-content:center;
   gap:9px;padding:22px 12px;border:none;border-radius:14px;
-  font-family:inherit;font-weight:800;font-size:.88rem;
-  cursor:pointer;transition:all .18s;min-height:105px;
+  font-family:inherit;cursor:pointer;transition:all .18s;min-height:105px;
   position:relative;overflow:hidden;box-shadow:var(--sh);
 }
 .tr-big-btn::before{content:'';position:absolute;inset:0;background:rgba(255,255,255,.14);opacity:0;transition:opacity .15s}
@@ -295,9 +306,8 @@ input,button,select{font-family:inherit;-webkit-tap-highlight-color:transparent}
 .tr-btn-rev{background:linear-gradient(145deg,#1A6B3C,#2E9957);color:#fff;box-shadow:0 4px 16px rgba(26,107,60,.3)}
 .tr-btn-dep{background:linear-gradient(145deg,#aa1f1f,#CC3333);color:#fff;box-shadow:0 4px 16px rgba(204,51,51,.3)}
 
+/* ── KPI strip ── */
 .tr-kpi-strip{display:grid;grid-template-columns:repeat(2,1fr);gap:9px;margin-bottom:12px}
-@media(min-width:600px){.tr-kpi-strip{grid-template-columns:repeat(4,1fr)}.tr-action-grid{gap:16px}}
-
 .tr-kpi{background:var(--card);border:1px solid var(--brd);border-radius:12px;padding:12px 13px;position:relative;overflow:hidden;box-shadow:var(--sh)}
 .tr-kpi-acc{position:absolute;top:0;left:0;right:0;height:3px}
 .tr-kpi-ic{font-size:1.2rem;display:block;margin-bottom:5px}
@@ -305,6 +315,7 @@ input,button,select{font-family:inherit;-webkit-tap-highlight-color:transparent}
 .tr-kpi-v{font-family:'JetBrains Mono',monospace;font-size:.98rem;font-weight:700;line-height:1.1;word-break:break-all}
 .tr-kpi-s{font-size:.62rem;color:var(--t3);margin-top:3px}
 
+/* ── Graphiques ── */
 .tr-chart-wrap{position:relative;height:190px;padding:2px 0}
 .tr-chart-alert{
   display:none;position:absolute;top:8px;right:8px;z-index:1;
@@ -312,17 +323,20 @@ input,button,select{font-family:inherit;-webkit-tap-highlight-color:transparent}
   padding:3px 9px;border-radius:99px;border:1px solid rgba(204,51,51,.3);
 }
 
+/* ── Onglets navigation ── */
 .tr-tabs{display:flex;gap:3px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;margin-bottom:11px;padding-bottom:2px}
 .tr-tabs::-webkit-scrollbar{display:none}
 .tr-tab{flex-shrink:0;padding:5px 12px;border-radius:8px;font-size:.7rem;font-weight:600;border:1.5px solid var(--brd);color:var(--t2);background:var(--card);cursor:pointer;transition:all .14s;min-height:34px;font-family:inherit}
 .tr-tab.on{background:var(--green);color:#fff;border-color:var(--green);font-weight:700}
 .tr-tab:active{transform:scale(.97)}
 
+/* ── Filtres transactions ── */
 .tr-filter-bar{display:flex;gap:5px;overflow-x:auto;scrollbar-width:none;margin-bottom:10px;padding-bottom:2px}
 .tr-filter-bar::-webkit-scrollbar{display:none}
 .tr-fbtn{flex-shrink:0;padding:4px 11px;border-radius:99px;font-size:.66rem;font-weight:700;border:1.5px solid var(--brd);color:var(--t2);background:var(--card);cursor:pointer;transition:all .13s;min-height:30px;font-family:inherit}
 .tr-fbtn.on{background:var(--green);color:#fff;border-color:var(--green)}
 
+/* ── Items de transaction ── */
 .tr-txn-item{
   background:var(--card);border:1px solid var(--brd);border-radius:11px;
   padding:10px 12px;margin-bottom:7px;display:flex;align-items:center;gap:10px;
@@ -346,9 +360,9 @@ input,button,select{font-family:inherit;-webkit-tap-highlight-color:transparent}
 .tr-txn-edit{background:var(--bl);color:var(--blue)}
 .tr-txn-del{background:var(--rl);color:var(--red)}
 .tr-offline-tag{font-size:.57rem;font-weight:700;background:var(--al);color:var(--amber);padding:1px 5px;border-radius:4px}
-
 .tr-day-hd{font-size:.61rem;font-weight:700;text-transform:uppercase;letter-spacing:1.2px;color:var(--t3);padding:10px 0 5px;display:flex;justify-content:space-between;align-items:center}
 
+/* ── Historique deltas ── */
 .tr-delta-item{display:flex;align-items:center;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--brd)}
 .tr-delta-item:last-child{border-bottom:none}
 .tr-delta-mois{font-size:.8rem;font-weight:700}
@@ -357,19 +371,21 @@ input,button,select{font-family:inherit;-webkit-tap-highlight-color:transparent}
 .tr-tag{font-size:.61rem;font-weight:700;padding:2px 7px;border-radius:99px;margin-top:3px;display:inline-block}
 .tr-tag-s{background:var(--gl);color:var(--green)}.tr-tag-d{background:var(--rl);color:var(--red)}
 
+/* ── Clôture mensuelle ── */
 .tr-cloture-card{background:linear-gradient(135deg,#0F4A27,var(--green));border-radius:13px;padding:15px;margin-bottom:12px;color:#fff;position:relative;overflow:hidden}
 .tr-cloture-card::before{content:'📅';position:absolute;right:-8px;top:-10px;font-size:4.5rem;opacity:.1}
 .tr-cloture-btn{background:rgba(255,255,255,.2);border:1.5px solid rgba(255,255,255,.4);color:#fff;border-radius:8px;padding:8px 14px;font-family:inherit;font-weight:700;font-size:.75rem;cursor:pointer;transition:all .15s;display:inline-flex;align-items:center;gap:5px}
 .tr-cloture-btn:hover{background:rgba(255,255,255,.3)}
 
+/* ── État vide ── */
 .tr-empty{text-align:center;padding:36px 16px;color:var(--t3)}
 .tr-empty-ic{font-size:2.5rem;margin-bottom:9px;display:block}
 .tr-empty-t{font-size:.83rem;font-weight:700;margin-bottom:4px;color:var(--t2)}
 
-/* Formulaire */
+/* ── Formulaire de saisie ── */
 .tr-form-group{margin-bottom:13px}
 .tr-form-lbl{display:block;font-size:.61rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--t3);margin-bottom:4px}
-.tr-fld{width:100%;padding:10px 12px;border:2px solid var(--brd);border-radius:9px;font-family:inherit;font-size:.85rem;outline:none;background:var(--bg);color:var(--t1);transition:border-color .18s;min-height:44px}
+.tr-fld{width:100%;padding:10px 12px;border:2px solid var(--brd);border-radius:9px;font-family:inherit;font-size:.85rem;outline:none;background:var(--bg);color:var(--t1);transition:border-color .18s;min-height:44px;box-sizing:border-box}
 .tr-fld:focus{border-color:var(--green);background:var(--card)}
 .tr-fld-sel{appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='7'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%239CA8B8' stroke-width='1.8' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;padding-right:34px}
 .tr-type-pills{display:flex;gap:8px;margin-bottom:2px}
@@ -386,12 +402,24 @@ input,button,select{font-family:inherit;-webkit-tap-highlight-color:transparent}
 .tr-submit-rev{background:linear-gradient(135deg,var(--green),var(--gm));color:#fff;box-shadow:0 4px 16px rgba(26,107,60,.3)}
 .tr-submit-dep{background:linear-gradient(135deg,#aa1f1f,var(--red));color:#fff;box-shadow:0 4px 16px rgba(204,51,51,.3)}
 .tr-submit:active{transform:scale(.98)}
+.tr-form-row{display:grid;grid-template-columns:1fr 1fr;gap:9px}
 
-/* Modal Trésorerie */
-.tr-modal-bg{position:fixed;inset:0;z-index:300;background:rgba(0,0,0,.6);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);display:none;align-items:flex-end;justify-content:center}
+/* ── Modal — Mobile : bottom-sheet / Desktop : centré ── */
+.tr-modal-bg{
+  position:fixed;inset:0;z-index:300;
+  background:rgba(0,0,0,.6);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+  display:none;align-items:flex-end;justify-content:center;
+}
 .tr-modal-bg.open{display:flex;animation:trfadeIn .2s ease}
 @keyframes trfadeIn{from{opacity:0}to{opacity:1}}
-.tr-modal-box{background:var(--card);border-radius:20px 20px 0 0;width:100%;max-width:580px;max-height:93vh;overflow:hidden;display:flex;flex-direction:column;animation:trslideUp .26s cubic-bezier(.4,0,.2,1);box-shadow:0 -12px 60px rgba(0,0,0,.2)}
+.tr-modal-box{
+  background:var(--card);
+  width:100%;max-width:540px;max-height:93vh;
+  overflow:hidden;display:flex;flex-direction:column;
+  border-radius:20px 20px 0 0;
+  animation:trslideUp .26s cubic-bezier(.4,0,.2,1);
+  box-shadow:0 -12px 60px rgba(0,0,0,.2);
+}
 @keyframes trslideUp{from{transform:translateY(50px);opacity:0}to{transform:translateY(0);opacity:1}}
 .tr-modal-handle{width:38px;height:4px;background:var(--brd2);border-radius:99px;margin:12px auto 0}
 .tr-modal-hd{padding:13px 18px 0;display:flex;align-items:center;justify-content:space-between}
@@ -399,10 +427,54 @@ input,button,select{font-family:inherit;-webkit-tap-highlight-color:transparent}
 .tr-modal-close{background:var(--brd);border:none;width:30px;height:30px;border-radius:99px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:.85rem;color:var(--t2)}
 .tr-modal-body{padding:15px 18px;overflow-y:auto;flex:1;padding-bottom:max(18px,env(safe-area-inset-bottom))}
 .tr-modal-body::-webkit-scrollbar{display:none}
-.tr-form-row{display:grid;grid-template-columns:1fr 1fr;gap:9px}
 
-/* Queue badge */
+/* ── Badge file d'attente ── */
 .tr-queue-badge{display:none;background:var(--amber);color:#fff;border-radius:99px;padding:2px 8px;font-size:.61rem;font-weight:800;cursor:pointer;margin-left:5px}
+
+/* ── RESPONSIVE DESKTOP ≥ 768px ── */
+@media(min-width:768px) {
+  /* Modal centré verticalement sur desktop */
+  .tr-modal-bg{ align-items:center }
+  .tr-modal-box{
+    border-radius:18px;
+    max-height:85vh;
+    animation:trfadeInScale .22s cubic-bezier(.4,0,.2,1);
+    box-shadow:0 24px 80px rgba(0,0,0,.25);
+  }
+  .tr-modal-handle{ display:none }  /* pas de poignée sur desktop */
+  @keyframes trfadeInScale{from{transform:scale(.94);opacity:0}to{transform:scale(1);opacity:1}}
+
+  /* KPI : 4 colonnes */
+  .tr-kpi-strip{ grid-template-columns:repeat(4,1fr) }
+
+  /* Boutons action : même hauteur réduite sur grand écran */
+  .tr-action-grid{ gap:16px }
+  .tr-big-btn{ min-height:80px;flex-direction:row;justify-content:center;gap:14px;padding:18px 20px }
+  .tr-big-btn-ic{ font-size:1.6rem }
+  .tr-big-btn-lbl{ font-size:.8rem;text-align:left }
+
+  /* Graphiques plus hauts */
+  .tr-chart-wrap{ height:240px }
+
+  /* Transactions : 2 colonnes côte à côte */
+  .tr-txn-name{ font-size:.83rem }
+  .tr-txn-amount{ font-size:.95rem }
+
+  /* Mode chips 4 colonnes */
+  .tr-mode-grid{ grid-template-columns:repeat(4,1fr) }
+
+  /* Formulaire : rangées 2 colonnes sur desktop */
+  .tr-form-row-desktop{ display:grid;grid-template-columns:1fr 1fr;gap:12px }
+}
+
+/* ── RESPONSIVE MOBILE ≤ 480px ── */
+@media(max-width:480px) {
+  .tr-kpi-strip{ gap:7px }
+  .tr-kpi-v{ font-size:.86rem }
+  .tr-big-btn{ min-height:88px;padding:16px 10px }
+  .tr-chart-wrap{ height:165px }
+  .tr-txn-name{ font-size:.76rem }
+}
 
 </style>
 </head>
@@ -431,6 +503,16 @@ input,button,select{font-family:inherit;-webkit-tap-highlight-color:transparent}
   <div class="lbox">
     <div class="lbrand" id="login-brand">FSEYE</div>
     <div class="lsub" id="login-tagline">Budget Familial · Sénégal</div>
+    <!-- Bannière fichier local -->
+    <div id="local-file-banner" style="display:none;background:#FEF3DC;border:1.5px solid #C97B0A;border-radius:10px;padding:12px 14px;margin-bottom:14px;font-size:.75rem;color:#7A4A00;line-height:1.6">
+      <div style="font-weight:800;margin-bottom:4px">⚠️ Fichier ouvert localement</div>
+      <div>Pour vous connecter, l'application doit être hébergée en ligne.</div>
+      <div style="margin-top:6px;font-size:.7rem;color:#8A6020">
+        <strong>Solution :</strong> Publiez index.html sur GitHub Pages
+        (<a href="https://pages.github.com" target="_blank" style="color:#C97B0A">pages.github.com</a>)
+        puis ouvrez l'URL https://… générée.
+      </div>
+    </div>
     <div id="login-form">
       <label class="lbl-s">Email</label>
       <input id="l-email" type="email" class="lfld" placeholder="fseye2018@gmail.com" style="margin-bottom:10px" autocomplete="email">
@@ -668,18 +750,14 @@ function recompute(y) {
 // ═══════════════════════════════════════════════════════════════
 function initFirebase() {
   const isLocalFile = window.location.protocol === "file:";
-  if(isLocalFile) {
-    console.warn("Fichier local — Firebase désactivé");
-    showApp(false);
-    return;
-  }
+
   // Vérifier que les scripts Firebase CDN sont bien chargés
   if(typeof firebase === "undefined") {
-    console.error("[FSEYE] Firebase SDK non disponible — vérifiez votre connexion ou désactivez votre bloqueur de publicités.");
     document.getElementById("loading").style.display = "none";
-    showLogin("Firebase non disponible — activez les scripts CDN ou désactivez votre bloqueur de pubs.");
+    showLogin("Firebase non disponible — vérifiez votre connexion internet ou désactivez votre bloqueur de pubs.");
     return;
   }
+
   try {
     if(!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
     fb     = firebase.app();
@@ -698,7 +776,12 @@ function initFirebase() {
         showApp(true);
       } else {
         currentUser = null;
-        showLogin();
+        // Si fichier local, afficher un avertissement utile
+        if(isLocalFile) {
+          showLogin("", true);
+        } else {
+          showLogin();
+        }
       }
     });
 
@@ -712,7 +795,11 @@ function initFirebase() {
   } catch(e) {
     console.error("Firebase init error:", e);
     document.getElementById("loading").style.display = "none";
-    showLogin("Erreur Firebase — vérifiez la configuration");
+    if(isLocalFile) {
+      showLogin("", true);
+    } else {
+      showLogin("Erreur Firebase — vérifiez votre connexion.");
+    }
   }
 }
 
@@ -796,7 +883,7 @@ function startSync(uid) {
 }
 
 function pushToFirebase() {
-  if(!currentUser || !fbDB) return;
+  if(!currentUser || !fbDB || typeof firebase === "undefined") return;
   const ref = fbDB.ref("fseye/" + currentUser.uid);
   ref.set({
     years: D,
@@ -851,9 +938,14 @@ function updateSyncBadge(state) {
 // ═══════════════════════════════════════════════════════════════
 // APP INIT
 // ═══════════════════════════════════════════════════════════════
-function showLogin(msg) {
+function showLogin(msg, isLocal=false) {
   document.getElementById("login").style.display = "flex";
   document.getElementById("app").style.display   = "none";
+
+  // Bannière fichier local
+  const localBanner = document.getElementById("local-file-banner");
+  if(localBanner) localBanner.style.display = isLocal ? "block" : "none";
+
   if(msg) {
     const err = document.getElementById("lerr");
     showErr(err, msg);
@@ -999,6 +1091,16 @@ function closeModal(id) { document.getElementById(id).classList.remove("on"); }
 function getEntries(y) { return D[y]?.entries||[]; }
 
 function getMonthTotals(y, m) {
+  // Les entrées synthétiques TR sont comptées séparément via vitM / trEntries
+  const entries = getEntries(y).filter(e=>!e._isTresorerie);
+  return {
+    planned: entries.reduce((s,e)=>s+(getMD(e,m).planned||0),0),
+    actual:  entries.reduce((s,e)=>s+(getMD(e,m).actual||0),0)
+  };
+}
+
+function getMonthTotalsAll(y, m) {
+  // Inclure toutes les entrées (y compris TR) — pour le solde réel
   const entries = getEntries(y);
   return {
     planned: entries.reduce((s,e)=>s+(getMD(e,m).planned||0),0),
@@ -1007,17 +1109,23 @@ function getMonthTotals(y, m) {
 }
 
 function getCentreMonthTotal(y, m, ctr) {
-  return getEntries(y).filter(e=>e.centre===ctr).reduce((s,e)=>s+(getMD(e,m).actual||0),0);
+  // Exclure les entrées auto-TR du total planifié/réalisé normal
+  return getEntries(y).filter(e=>e.centre===ctr && !e._isTresorerie).reduce((s,e)=>s+(getMD(e,m).actual||0),0);
 }
 function getCentrePlanMonthTotal(y, m, ctr) {
-  return getEntries(y).filter(e=>e.centre===ctr).reduce((s,e)=>s+(getMD(e,m).planned||0),0);
+  return getEntries(y).filter(e=>e.centre===ctr && !e._isTresorerie).reduce((s,e)=>s+(getMD(e,m).planned||0),0);
+}
+function getCentreTrMonthTotal(y, m, ctr) {
+  // Flux Trésorerie uniquement (dépenses imprévues auto-injectées)
+  return getEntries(y).filter(e=>e.centre===ctr && e._isTresorerie).reduce((s,e)=>s+(getMD(e,m).actual||0),0);
 }
 function getRevTotal(y, m) {
   const k = y+"_"+m;
   return (revs[k]||[]).reduce((s,r)=>s+(parseFloat(r.amount)||0),0);
 }
 function getYearTotal(y, field) {
-  return getEntries(y).reduce((s,e)=>s+(e[field]||0),0);
+  // Exclure les entrées TR synthétiques des totaux annuels (graphiques historique/tendance)
+  return getEntries(y).filter(e=>!e._isTresorerie).reduce((s,e)=>s+(e[field]||0),0);
 }
 function getThresh() { return prefs.alertThreshold||110; }
 
@@ -1026,25 +1134,27 @@ function getThresh() { return prefs.alertThreshold||110; }
 // ═══════════════════════════════════════════════════════════════
 function renderDashboard() {
   const mi = MK.indexOf(mo);
-  const mt = getMonthTotals(yr, mo);
+  const mt  = getMonthTotals(yr, mo);           // hors TR (pour alertes/comparaison planifié)
+  const mtAll = getMonthTotalsAll(yr, mo);      // avec TR (pour solde réel)
   const rev = getRevTotal(yr, mo);
-  const bal = rev - mt.actual;
+  const bal = rev - mtAll.actual;               // solde réel inclut les dépenses imprévues TR
   const thresh = getThresh();
 
-  // Vitales ratio
-  const vitM = getEntries(yr).filter(e=>e.categorie==="VITALE"||e.categorie==="IMPORTANTE")
+  // Vitales ratio (hors TR)
+  const vitM = getEntries(yr).filter(e=>!e._isTresorerie && (e.categorie==="VITALE"||e.categorie==="IMPORTANTE"))
     .reduce((s,e)=>s+(getMD(e,mo).actual||0),0);
-  const nvPct = mt.actual>0 ? Math.round((mt.actual-vitM)/mt.actual*100) : 0;
+  const nvPct = mtAll.actual>0 ? Math.round((mtAll.actual-vitM)/mtAll.actual*100) : 0;
+
+  // Compter les entrées Trésorerie ce mois
+  const trEntries  = getEntries(yr).filter(e => e._isTresorerie);
+  const trDepTotal = trEntries.reduce((s,e) => s + (getMD(e,mo).actual||0), 0);
 
   const kpis = [
-    {ic:"💰",lb:"Revenus "+MNF[mi],        v:rev>0?fmtCFA(rev):"Non saisi",   col:rev>0?"#C97B0A":"#9CA8B8"},
-    {ic:"📊",lb:"Dépenses "+MNF[mi],       v:fmtCFA(mt.actual),               col:mt.actual>mt.planned?"#CC3333":"#1A6B3C"},
-    {ic:"⚖️",lb:"Non-essentielles",         v:mt.actual>0?nvPct+"%":"—",       col:nvPct>40?"#CC3333":nvPct>25?"#C97B0A":"#1A6B3C"},
+    {ic:"💰",lb:"Revenus "+MNF[mi],        v:rev>0?fmtCFA(rev):"Non saisi",      col:rev>0?"#C97B0A":"#9CA8B8"},
+    {ic:"📊",lb:"Dépenses "+MNF[mi],       v:fmtCFA(mtAll.actual),               col:mtAll.actual>mt.planned?"#CC3333":"#1A6B3C"},
+    {ic:"⚖️",lb:"Non-essentielles",         v:mtAll.actual>0?nvPct+"%":"—",       col:nvPct>40?"#CC3333":nvPct>25?"#C97B0A":"#1A6B3C"},
     {ic:bal>=0?"🏦":"⚠️",lb:"Solde mensuel",v:rev>0?(sgn(bal)+fmtCFA(Math.abs(bal))):"—",col:bal>=0?"#1A6B3C":"#CC3333"}
   ];
-  // Compter les entrées Trésorerie ce mois
-  const trEntries = getEntries(yr).filter(e => e._isTresorerie);
-  const trDepTotal = trEntries.reduce((s,e) => s + (getMD(e,mo).actual||0), 0);
 
   // Alerts
   let alertHtml = "";
@@ -1052,6 +1162,7 @@ function renderDashboard() {
     alertHtml += `<div class="alert-b al-g" style="margin-bottom:10px">💰 <div><strong>Trésorerie</strong> — Dépenses imprévues ce mois : <strong>${fmtCFA(trDepTotal)}</strong> <span class="tr-dash-badge">Flux Réel</span></div></div>`;
   }
   const overruns = getEntries(yr).filter(e=>{
+    if(e._isTresorerie) return false; // entrées auto-TR jamais en dépassement (pas de planifié)
     const md=getMD(e,mo); if(!md.planned) return false;
     return md.actual > md.planned*thresh/100;
   });
@@ -1354,6 +1465,8 @@ function renderDepBloc(c, ctr) {
             const p=md.planned||0, a=md.actual||0, ec=a-p;
             const pt=p>0?(a/p*100):0;
             const rcl=pt>thresh?"tbl-ov":pt>100?"tbl-wn":"";
+            const note = e.note||"";
+            const hasNote = note.trim().length > 0;
             return `<tr class="${rcl}" id="drow-${idx}">
               <td style="text-align:right">
                 <div style="font-weight:700;font-size:.79rem">${e.rubrique.substring(0,38)}</div>
@@ -1365,7 +1478,22 @@ function renderDepBloc(c, ctr) {
                 id="a-${idx}" value="${a||""}" placeholder="0" onblur="upEntry(${idx})"></td>
               <td><span class="mono" id="ec-${idx}" style="font-size:.76rem;font-weight:700;color:${ec<0?"var(--green)":ec>0?"var(--red)":"var(--t3)"}">${ec!==0?(sgn(ec)+fmtCFA(Math.abs(ec))):"—"}</span></td>
               <td><span id="pct-${idx}" style="font-size:.72rem;font-weight:700;color:${pctCol(pt,thresh)}">${p>0?pt.toFixed(0)+"%":"—"}</span></td>
-              <td><button class="btn br bsm" onclick="delEntry(${idx})">✕</button></td>
+              <td style="white-space:nowrap">
+                <button class="note-btn${hasNote?" has-note":""}" id="notebtn-${idx}" onclick="toggleNote(${idx})" title="${hasNote?'Voir/modifier le commentaire':'Ajouter un commentaire'}">💬${hasNote?` ✓`:""}</button>
+                <button class="btn br bsm" style="margin-left:3px" onclick="delEntry(${idx})">✕</button>
+              </td>
+            </tr>
+            <tr class="note-row" id="note-row-${idx}">
+              <td colspan="6">
+                <div class="note-wrap${hasNote?" open":""}" id="note-wrap-${idx}">
+                  <textarea class="note-ta" id="note-ta-${idx}" placeholder="💬 Commentaire sur cette rubrique (facultatif)…"
+                    onblur="saveNote(${idx},this.value)">${note.replace(/</g,"&lt;")}</textarea>
+                  <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px">
+                    <span style="font-size:.62rem;color:var(--t3)">Enregistré automatiquement</span>
+                    ${hasNote?`<button class="btn br" style="font-size:.62rem;padding:2px 8px;min-height:24px" onclick="clearNote(${idx})">🗑️ Effacer</button>`:""}
+                  </div>
+                </div>
+              </td>
             </tr>`;
           }).join("")}
         </tbody>
@@ -1384,6 +1512,8 @@ function renderDepBloc(c, ctr) {
 }
 
 function upEntry(idx) {
+  // Guard : ne jamais modifier les entrées auto-Trésorerie
+  if(D[yr]?.entries[idx]?._isTresorerie) return;
   const p = parseFloat(document.getElementById("p-"+idx)?.value)||0;
   const a = parseFloat(document.getElementById("a-"+idx)?.value)||0;
   const ec = a-p;
@@ -1420,6 +1550,12 @@ function addDepLine(ctr) {
 }
 
 function delEntry(idx) {
+  const entry = D[yr]?.entries[idx];
+  if(!entry) return;
+  if(entry._isTresorerie) {
+    toast("⚠️ Entrée auto — supprimez la dépense dans le module Trésorerie.");
+    return;
+  }
   if(!confirm("Supprimer cette rubrique ?")) return;
   D[yr].entries.splice(idx,1);
   recompute(yr);
@@ -1429,11 +1565,13 @@ function delEntry(idx) {
 }
 
 function renderSaisieRecap(c) {
+  const trTotal = getEntries(yr).filter(e=>e._isTresorerie).reduce((s,e)=>s+(getMD(e,mo).actual||0),0);
   c.innerHTML = `<div style="display:flex;flex-direction:column;gap:9px">
     ${CTRS.map(ctr=>{
       const cfg=CTR_CFG[ctr];
       const tA=getCentreMonthTotal(yr,mo,ctr);
       const tP=getCentrePlanMonthTotal(yr,mo,ctr);
+      const trA=getCentreTrMonthTotal(yr,mo,ctr);
       const pct=tP>0?Math.round(tA/tP*100):0;
       return `<div class="card" style="padding:12px 14px;border-left:3px solid ${cfg.col}">
         <div style="display:flex;justify-content:space-between;align-items:center">
@@ -1444,8 +1582,18 @@ function renderSaisieRecap(c) {
             ${tP>0?`<span style="font-size:.68rem;font-weight:700;background:${pctBg(pct)};color:${pctCol(pct)};padding:2px 7px;border-radius:99px">${pct}%</span>`:""}
           </div>
         </div>
+        ${trA>0?`<div style="margin-top:7px;padding-top:6px;border-top:1px dashed var(--brd);display:flex;justify-content:space-between;font-size:.67rem;color:var(--t3)">
+          <span>🔗 Flux Trésorerie (imprévus)</span>
+          <span class="mono" style="font-weight:700;color:var(--purple)">+ ${fmtCFA(trA)}</span>
+        </div>`:""}
       </div>`;
     }).join("")}
+    ${trTotal>0?`<div class="card" style="padding:10px 14px;background:var(--pl);border:1px solid var(--purple)">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div style="font-size:.76rem;font-weight:700;color:var(--purple)">💰 Total Trésorerie imprévus</div>
+        <div class="mono" style="font-weight:900;color:var(--purple);font-size:.88rem">${fmtCFA(trTotal)}</div>
+      </div>
+    </div>`:""}
   </div>`;
 }
 
@@ -1459,7 +1607,10 @@ function saveSaisie() {
 // ANALYSE
 // ═══════════════════════════════════════════════════════════════
 function renderAnalyse() {
-  const entries = getEntries(yr);
+  // Exclure les entrées auto-Trésorerie pour ne pas biaiser le score budgétaire
+  const entries = getEntries(yr).filter(e => !e._isTresorerie);
+  const trEntries = getEntries(yr).filter(e => e._isTresorerie);
+  const trAnnual  = trEntries.reduce((s,e)=>s+e.total_actual,0);
   const ta = entries.reduce((s,e)=>s+e.total_actual,0);
   const tp = entries.reduce((s,e)=>s+e.total_planned,0);
   const dR = ta>0 ? entries.filter(e=>e.centre==="DETTES").reduce((s,e)=>s+e.total_actual,0)/ta : 0;
@@ -1545,6 +1696,18 @@ function renderAnalyse() {
         </div>`).join("")}
       </div>
     </div>
+    ${trAnnual > 0 ? `
+    <div class="card" style="padding:13px 14px;margin-bottom:12px;border-left:3px solid var(--purple)">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+        <span style="font-size:1.1rem">💰</span>
+        <div>
+          <div style="font-weight:700;font-size:.82rem">Dépenses imprévues — Trésorerie ${yr}</div>
+          <div style="font-size:.63rem;color:var(--t3)">Non incluses dans le score budgétaire</div>
+        </div>
+        <div style="margin-left:auto;font-family:'JetBrains Mono',monospace;font-weight:900;color:var(--red)">${fmtCFA(trAnnual)}</div>
+      </div>
+      <div style="font-size:.69rem;color:var(--t2);line-height:1.5">Ces dépenses ont été saisies via le module Trésorerie. Elles représentent des flux réels non planifiés et ne sont pas comptabilisées dans le score de santé financière.</div>
+    </div>` : ""}
   `;
 }
 
@@ -1574,7 +1737,8 @@ function renderHistorique() {
           <thead><tr><th>Année</th><th>Thiès</th><th>Dakar</th><th>Dettes</th><th>Autres</th><th>Planifié</th><th>Réalisé</th><th>Ecart</th></tr></thead>
           <tbody>
             ${yrs.map(y=>{
-              const ents=getEntries(y);
+              const ents=getEntries(y).filter(e=>!e._isTresorerie);
+              const trTotal=getEntries(y).filter(e=>e._isTresorerie).reduce((s,e)=>s+e.total_actual,0);
               const vals=CTRS.map(c=>ents.filter(e=>e.centre===c).reduce((s,e)=>s+e.total_actual,0));
               const tp=ents.reduce((s,e)=>s+e.total_planned,0);
               const ta=ents.reduce((s,e)=>s+e.total_actual,0);
@@ -1584,7 +1748,7 @@ function renderHistorique() {
                 <td style="font-weight:800;font-family:'JetBrains Mono',monospace;color:${isCur?"var(--green)":"var(--t1)"}">${isCur?"▶ ":""}${y}</td>
                 ${vals.map((v,i)=>`<td class="mono" style="font-size:.76rem;font-weight:700;color:${["var(--green)","var(--teal)","var(--red)","var(--purple)"][i]}">${fmt(v)}</td>`).join("")}
                 <td class="mono" style="color:var(--blue);font-weight:700;font-size:.76rem">${fmt(tp)}</td>
-                <td class="mono fw9 gn" style="font-size:.8rem">${fmt(ta)}</td>
+                <td class="mono fw9 gn" style="font-size:.8rem">${fmt(ta)}${trTotal>0?`<span style="font-size:.55rem;color:var(--purple);margin-left:3px" title="Dont ${fmt(trTotal)} CFA Trésorerie">+TR</span>`:""}</td>
                 <td class="mono" style="font-size:.76rem;font-weight:700;color:${ec<0?"var(--green)":"var(--red)"}">${ec!==0?(sgn(ec)+fmt(Math.abs(ec))):"—"}</td>
               </tr>`;
             }).join("")}
@@ -1742,7 +1906,10 @@ function saveIdentity() {
 }
 
 function paramsRubriques(c) {
-  const entries = getEntries(yr).filter(e => !e._isTresorerie); // Masquer entrées auto-Trésorerie
+  // Mapper avec l'index RÉEL dans D[yr].entries, puis filtrer les entrées auto-TR
+  const entries = getEntries(yr)
+    .map((e, realIdx) => ({...e, _realIdx: realIdx}))
+    .filter(e => !e._isTresorerie);
   const cats    = prefs.cats || [];
   c.innerHTML = `<div class="card" style="overflow:hidden">
     <div class="card-hd">
@@ -1753,16 +1920,17 @@ function paramsRubriques(c) {
       <table class="tbl">
         <thead><tr><th style="min-width:150px">Rubrique</th><th style="min-width:90px">Centre</th><th style="min-width:100px">Catégorie</th></tr></thead>
         <tbody>
-          ${entries.map((e,i)=>{
+          ${entries.map((e)=>{
+            const ri = e._realIdx; // index réel dans D[yr].entries
             const ctrOpts = CTRS.map(c=>`<option value="${c}"${e.centre===c?" selected":""}>${CTR_CFG[c].name}</option>`).join("");
             const catOpts = (prefs.cats||DEFAULT_CATS_LIST).map(cat=>`<option value="${cat.id}"${e.categorie===cat.id?" selected":""}>${cat.ic} ${cat.name}</option>`).join("");
             return `<tr>
               <td><input style="background:none;border:none;outline:none;font-weight:600;font-size:.78rem;width:100%;color:var(--t1);font-family:inherit"
-                value="${e.rubrique.replace(/"/g,"&quot;")}" onchange="updateRubNom(${i},this.value)"></td>
+                value="${e.rubrique.replace(/"/g,"&quot;")}" onchange="updateRubNom(${ri},this.value)"></td>
               <td><select style="background:var(--bg);border:1px solid var(--brd);border-radius:5px;padding:4px 6px;font-size:.7rem;font-family:inherit;color:var(--t1);cursor:pointer;width:100%"
-                onchange="updateRubCtr(${i},this.value)">${ctrOpts}</select></td>
+                onchange="updateRubCtr(${ri},this.value)">${ctrOpts}</select></td>
               <td><select style="background:var(--bg);border:1px solid var(--brd);border-radius:5px;padding:4px 6px;font-size:.7rem;font-family:inherit;color:var(--t1);cursor:pointer;width:100%"
-                onchange="updateRubCat(${i},this.value)">${catOpts}</select></td>
+                onchange="updateRubCat(${ri},this.value)">${catOpts}</select></td>
             </tr>`;
           }).join("")}
         </tbody>
@@ -1781,6 +1949,37 @@ const DEFAULT_CATS_LIST = [
 function updateRubNom(i,v){ if(D[yr]?.entries[i]) { D[yr].entries[i].rubrique=v; scheduleSync(); } }
 function updateRubCtr(i,v){ if(D[yr]?.entries[i]) { D[yr].entries[i].centre=v;   recompute(yr); scheduleSync(); } }
 function updateRubCat(i,v){ if(D[yr]?.entries[i]) { D[yr].entries[i].categorie=v;recompute(yr); scheduleSync(); } }
+
+// ── Commentaires par rubrique ──────────────────────────────
+function toggleNote(idx) {
+  const wrap = document.getElementById("note-wrap-"+idx);
+  const ta   = document.getElementById("note-ta-"+idx);
+  if(!wrap) return;
+  const isOpen = wrap.classList.toggle("open");
+  if(isOpen && ta) setTimeout(()=>ta.focus(),250);
+}
+
+function saveNote(idx, val) {
+  if(!D[yr]?.entries[idx]) return;
+  const old = D[yr].entries[idx].note || "";
+  D[yr].entries[idx].note = val;
+  // Mettre à jour le bouton en live
+  const btn = document.getElementById("notebtn-"+idx);
+  const wrap = document.getElementById("note-wrap-"+idx);
+  const hasNote = val.trim().length > 0;
+  if(btn) {
+    btn.className = "note-btn" + (hasNote?" has-note":"");
+    btn.textContent = "💬" + (hasNote?" ✓":"");
+  }
+  if(val !== old) scheduleSync();
+}
+
+function clearNote(idx) {
+  if(!D[yr]?.entries[idx]) return;
+  D[yr].entries[idx].note = "";
+  scheduleSync();
+  renderSaisieTab(); // rafraîchir pour retirer le bouton "Effacer"
+}
 
 function addRubrique() {
   if(!D[yr]) return;
@@ -2197,7 +2396,7 @@ function trDefaultCats() {
 // PAGE PRINCIPALE DU MODULE
 // ──────────────────────────────────────────────────────────
 function trRenderPage() {
-  if(!currentUser) { trOfflineQueue=[]; } // pas d'utilisateur
+  if(!currentUser) { trOfflineQueue=[]; }
   if(currentUser && !trListeners.length) trInit();
   trLoadOfflineQueue();
 
@@ -2211,28 +2410,108 @@ function trRenderPage() {
     ["params","⚙️ Paramètres"]
   ];
 
-  pg.innerHTML = `
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-      <div>
-        <div style="font-weight:800;font-size:.95rem">💰 Trésorerie</div>
-        <div style="font-size:.67rem;color:var(--t3)">${TR_MOISL[trMonth]} ${trYear} · Saisie manuelle</div>
+  const isDesktop = window.innerWidth >= 768;
+
+  if(isDesktop) {
+    // ── Layout PC : sidebar gauche + contenu principal ────────
+    pg.innerHTML = `
+      <div style="display:grid;grid-template-columns:220px 1fr;gap:18px;align-items:start">
+
+        <!-- SIDEBAR NAVIGATION -->
+        <div>
+          <div style="background:var(--card);border:1px solid var(--brd);border-radius:14px;overflow:hidden;box-shadow:var(--sh);margin-bottom:14px">
+            <div style="padding:16px 14px 12px;border-bottom:1px solid var(--brd)">
+              <div style="font-weight:800;font-size:1rem;color:var(--t1)">💰 Trésorerie</div>
+              <div style="font-size:.62rem;color:var(--t3);margin-top:2px">${TR_MOISL[trMonth]} ${trYear}</div>
+              <span class="tr-queue-badge" id="tr-queue-badge" onclick="trFlushOfflineQueue()" style="margin-left:0;margin-top:6px;display:block;width:fit-content"></span>
+            </div>
+            <div style="padding:8px">
+              ${TABS.map(([id,lbl])=>`
+                <button onclick="trSwitchSub('${id}')" style="
+                  width:100%;text-align:left;padding:9px 12px;border-radius:9px;border:none;
+                  font-family:inherit;font-size:.77rem;font-weight:${trSubPage===id?"700":"600"};cursor:pointer;
+                  background:${trSubPage===id?"var(--green)":"transparent"};
+                  color:${trSubPage===id?"#fff":"var(--t2)"};
+                  display:flex;align-items:center;gap:8px;margin-bottom:2px;transition:all .14s
+                " onmouseover="if('${id}'!=='${trSubPage}')this.style.background='var(--brd)'" onmouseout="if('${id}'!=='${trSubPage}')this.style.background='transparent'">
+                  ${lbl}
+                </button>`).join("")}
+            </div>
+          </div>
+
+          <!-- Boutons action rapide -->
+          <div style="display:flex;flex-direction:column;gap:9px">
+            <button class="tr-btn-rev" onclick="trOpenForm('rev')" style="
+              border:none;border-radius:12px;padding:13px 14px;
+              font-family:inherit;font-weight:800;font-size:.78rem;cursor:pointer;
+              display:flex;align-items:center;gap:10px;color:#fff;transition:all .15s;
+              background:linear-gradient(145deg,#1A6B3C,#2E9957);box-shadow:0 3px 12px rgba(26,107,60,.3)
+            ">
+              <span style="font-size:1.2rem">💚</span> Nouveau Revenu
+            </button>
+            <button class="tr-btn-dep" onclick="trOpenForm('dep')" style="
+              border:none;border-radius:12px;padding:13px 14px;
+              font-family:inherit;font-weight:800;font-size:.78rem;cursor:pointer;
+              display:flex;align-items:center;gap:10px;color:#fff;transition:all .15s;
+              background:linear-gradient(145deg,#aa1f1f,#CC3333);box-shadow:0 3px 12px rgba(204,51,51,.3)
+            ">
+              <span style="font-size:1.2rem">🔴</span> Nouvelle Dépense
+            </button>
+          </div>
+
+          <!-- Navigation mois -->
+          <div style="margin-top:14px;background:var(--card);border:1px solid var(--brd);border-radius:12px;padding:12px;box-shadow:var(--sh)">
+            <div style="font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--t3);margin-bottom:8px">Période</div>
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:4px">
+              <button onclick="trChangeMonth(-1)" style="background:var(--brd);border:none;border-radius:7px;width:28px;height:28px;cursor:pointer;font-size:.9rem;color:var(--t2);display:flex;align-items:center;justify-content:center">‹</button>
+              <span style="font-size:.72rem;font-weight:700;text-align:center;color:var(--t1)">${TR_MOISL[trMonth]}<br><span style="color:var(--t3);font-weight:600">${trYear}</span></span>
+              <button onclick="trChangeMonth(1)" style="background:var(--brd);border:none;border-radius:7px;width:28px;height:28px;cursor:pointer;font-size:.9rem;color:var(--t2);display:flex;align-items:center;justify-content:center">›</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- CONTENU PRINCIPAL -->
+        <div id="tr-sub-content" style="min-width:0"></div>
       </div>
-      <span class="tr-queue-badge" id="tr-queue-badge" onclick="trFlushOfflineQueue()"></span>
-    </div>
-    <div class="tr-tabs">
-      ${TABS.map(([id,lbl])=>`<button class="tr-tab${trSubPage===id?" on":""}" onclick="trSwitchSub('${id}')">${lbl}</button>`).join("")}
-    </div>
-    <div id="tr-sub-content"></div>
-  `;
+    `;
+  } else {
+    // ── Layout Mobile : vertical classique ────────────────────
+    pg.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <div>
+          <div style="font-weight:800;font-size:.95rem">💰 Trésorerie</div>
+          <div style="font-size:.67rem;color:var(--t3)">${TR_MOISL[trMonth]} ${trYear} · Saisie manuelle</div>
+        </div>
+        <span class="tr-queue-badge" id="tr-queue-badge" onclick="trFlushOfflineQueue()"></span>
+      </div>
+      <div class="tr-tabs">
+        ${TABS.map(([id,lbl])=>`<button class="tr-tab${trSubPage===id?" on":""}" onclick="trSwitchSub('${id}')">${lbl}</button>`).join("")}
+      </div>
+      <div id="tr-sub-content"></div>
+    `;
+  }
+
   trRenderSub();
   trUpdateQueueBadge();
 }
 
 function trSwitchSub(id) {
   trSubPage = id;
-  document.querySelectorAll(".tr-tab").forEach((btn,i) =>
-    btn.classList.toggle("on", ["dashboard","transactions","historique","params"][i] === id)
-  );
+  const isDesktop = window.innerWidth >= 768;
+  if(isDesktop) {
+    // Sur desktop, mettre à jour la surbrillance des boutons sidebar sans re-render complet
+    const sidebarBtns = document.querySelectorAll("#pg-tresorerie [onclick^='trSwitchSub']");
+    sidebarBtns.forEach(btn => {
+      const btnId = btn.getAttribute("onclick").match(/'([^']+)'/)?.[1];
+      btn.style.background = btnId === id ? "var(--green)" : "transparent";
+      btn.style.color       = btnId === id ? "#fff" : "var(--t2)";
+      btn.style.fontWeight  = btnId === id ? "700" : "600";
+    });
+  } else {
+    document.querySelectorAll(".tr-tab").forEach((btn, i) =>
+      btn.classList.toggle("on", ["dashboard","transactions","historique","params"][i] === id)
+    );
+  }
   trRenderSub();
 }
 
@@ -2252,9 +2531,11 @@ function trRenderDashboard(c) {
   const today = new Date();
   const isCurrentMonth = (trYear===today.getFullYear() && trMonth===today.getMonth()+1);
   const canCloture = !isCurrentMonth || today.getDate() === 1;
+  const isDesktop = window.innerWidth >= 768;
 
   c.innerHTML = `
-    <!-- Boutons action -->
+    ${!isDesktop ? `
+    <!-- Boutons action — mobile uniquement -->
     <div class="tr-action-grid" style="margin-bottom:12px">
       <button class="tr-big-btn tr-btn-rev" onclick="trOpenForm('rev')">
         <span class="tr-big-btn-ic">💚</span>
@@ -2264,36 +2545,43 @@ function trRenderDashboard(c) {
         <span class="tr-big-btn-ic">🔴</span>
         <span class="tr-big-btn-lbl">Nouvelle<br>Dépense</span>
       </button>
-    </div>
+    </div>` : ""}
+
+    <!-- KPI strip -->
     <div class="tr-kpi-strip" id="tr-kpi-strip"></div>
-    <!-- Graphiques : grille 2 colonnes sur desktop -->
+
+    <!-- Graphiques -->
     <div class="tr-desktop-grid" style="margin-bottom:12px">
       <div class="card">
-        <div class="card-hd">
-          <div><div class="card-title">📊 Évolution du mois</div><div class="card-sub">Revenus vs Dépenses</div></div>
-          <div class="tr-chart-alert" id="tr-chart-alert">⚠️ Seuil!</div>
+        <div class="card-hd" style="position:relative">
+          <div><div class="card-title">📊 Évolution du mois</div><div class="card-sub">Revenus vs Dépenses — cumul</div></div>
+          <div class="tr-chart-alert" id="tr-chart-alert">⚠️ Seuil !</div>
         </div>
         <div class="card-body" style="padding-bottom:10px"><div class="tr-chart-wrap"><canvas id="tr-chart-mois"></canvas></div></div>
       </div>
       <div class="card">
-        <div class="card-hd"><div><div class="card-title">📊 Capacité d'investissement</div><div class="card-sub">Surplus (▲) vs Déficit (▼)</div></div></div>
+        <div class="card-hd"><div><div class="card-title">📊 Capacité d'investissement</div><div class="card-sub">Surplus (▲) vs Déficit (▼) par mois</div></div></div>
         <div class="card-body" style="padding-bottom:10px"><div class="tr-chart-wrap"><canvas id="tr-chart-delta"></canvas></div></div>
       </div>
     </div>
-    <!-- Navigation mois + Clôture -->
+
+    ${!isDesktop ? `
+    <!-- Navigation mois — mobile uniquement -->
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
       <button class="btn bg" style="padding:6px 12px;font-size:.74rem" onclick="trChangeMonth(-1)">‹ Mois préc.</button>
       <span style="font-weight:700;font-size:.82rem">${TR_MOISL[trMonth]} ${trYear}</span>
       <button class="btn bg" style="padding:6px 12px;font-size:.74rem" onclick="trChangeMonth(1)">Mois suiv. ›</button>
-    </div>
+    </div>` : ""}
+
     ${canCloture ? `<div class="tr-cloture-card">
       <div style="font-weight:800;font-size:.88rem;margin-bottom:4px;opacity:.9">📅 Clôture de mois disponible</div>
-      <div style="font-size:.7rem;opacity:.7;margin-bottom:11px;line-height:1.5">Archiver les transactions du mois précédent, calculer le delta et mettre à jour les agrégats.</div>
+      <div style="font-size:.7rem;opacity:.7;margin-bottom:11px;line-height:1.5">Archiver les transactions du mois précédent et mettre à jour les agrégats.</div>
       <button class="tr-cloture-btn" onclick="trOpenClotureConfirm()">🔒 Clôturer ${TR_MOISL[trMonth===1?12:trMonth-1]}</button>
     </div>` : ""}
-    <!-- Badge liaison Dashboard -->
+
+    <!-- Badge liaison -->
     <div style="margin-top:10px;font-size:.65rem;color:var(--t3);display:flex;align-items:center;gap:5px;justify-content:center">
-      <span>🔗</span> Les dépenses saisies ici apparaissent automatiquement dans <strong>Saisie Mensuelle</strong> (Centre : Autres Dépenses)
+      <span>🔗</span> Les dépenses saisies ici apparaissent dans <strong>Saisie Mensuelle</strong> (Autres Dépenses)
     </div>
   `;
 
@@ -2416,10 +2704,14 @@ function trRenderChart2() {
 // car elles ne touchent pas à Firestore/RDB directement (elles utilisent trTransactions).
 // Je les inclus pour que le module soit complet.
 function trRenderTransactions(c) {
+  const isDesktop = window.innerWidth >= 768;
   c.innerHTML = `
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-      <div style="font-weight:700;font-size:.88rem">Transactions — ${TR_MOISL[trMonth]} ${trYear}</div>
-      <button class="btn bp" style="padding:6px 12px;font-size:.72rem" onclick="trOpenForm('dep')">+ Nouveau</button>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <div>
+        <div style="font-weight:800;font-size:${isDesktop?".95rem":".88rem"}">Transactions — ${TR_MOISL[trMonth]} ${trYear}</div>
+        <div style="font-size:.65rem;color:var(--t3);margin-top:1px">${trTransactions.length} opération${trTransactions.length>1?"s":""} enregistrée${trTransactions.length>1?"s":""}</div>
+      </div>
+      ${!isDesktop?`<button class="btn bp" style="padding:6px 12px;font-size:.72rem" onclick="trOpenForm('dep')">+ Nouveau</button>`:""}
     </div>
     <div class="tr-filter-bar">
       ${[["all","Tout"],["rev","💚 Revenus"],["dep","🔴 Dépenses"],["wave","📱 Wave"],["orange","🟠 Orange"],["banque","🏦 Banque"],["espece","💵 Espèces"]].map(([f,l])=>`<button class="tr-fbtn${trFilter===f?" on":""}" onclick="trSetFilter('${f}',this)">${l}</button>`).join("")}
@@ -2745,7 +3037,7 @@ async function syncTrDepRemoveEntry(oldTxnId, newTxnId, ym, newData) {
 
 function pushToFirebaseAsync() {
   return new Promise((resolve) => {
-    if(!currentUser || !fbDB) { resolve(); return; }
+    if(!currentUser || !fbDB || typeof firebase === "undefined") { resolve(); return; }
     const ref = fbDB.ref("fseye/" + currentUser.uid);
     ref.set({
       years: D, revs, comments, prefs,
