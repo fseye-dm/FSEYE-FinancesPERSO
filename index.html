@@ -611,11 +611,8 @@ input,button,select{font-family:inherit;-webkit-tap-highlight-color:transparent}
     <div id="pg-analyse"    class="pg"></div>
     <div id="pg-historique" class="pg"></div>
     <div id="pg-params"     class="pg"></div>
-  </div>
-
-
-    <!-- PAGE TRÉSORERIE -->
     <div id="pg-tresorerie" class="pg"></div>
+  </div>
 
   <!-- BOTTOM NAV -->
   <nav class="bnav">
@@ -1172,9 +1169,46 @@ function renderDashboard() {
   }
 
   const pg = document.getElementById("pg-dashboard");
+
+  // Calcul "argent qui s'échappe" = planifié mais non dépensé + dépenses TR imprévues
+  const normalEntries = getEntries(yr).filter(e=>!e._isTresorerie);
+  const planifié = normalEntries.reduce((s,e)=>s+(getMD(e,mo).planned||0),0);
+  const réalisé  = normalEntries.reduce((s,e)=>s+(getMD(e,mo).actual||0),0);
+  const économies = Math.max(0, planifié - réalisé); // Dépenses sous budget
+  const imprévus  = trDepTotal;
+  const écart_net = planifié - réalisé - imprévus;   // Gain réel vs plan
+
   pg.innerHTML = `
     ${alertHtml}
     <div class="kpi-g" id="kpi-g"></div>
+
+    <!-- BLOC ÉCARTS : Argent qui échappe / Budget vs Réel -->
+    ${(planifié > 0 || imprévus > 0) ? `
+    <div class="card" style="padding:13px 15px;margin-bottom:12px;border-left:3px solid ${écart_net>=0?"var(--green)":"var(--red)"}">
+      <div style="font-weight:800;font-size:.78rem;margin-bottom:9px;display:flex;align-items:center;gap:6px">
+        ${écart_net>=0?"💡":"⚠️"} <span>Analyse de l'écart budgétaire — ${MNF[MK.indexOf(mo)]} ${yr}</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+        <div style="background:var(--brd);border-radius:9px;padding:10px 11px">
+          <div style="font-size:.58rem;color:var(--t3);font-weight:700;text-transform:uppercase;letter-spacing:.8px;margin-bottom:3px">Budget planifié</div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:.85rem;font-weight:800;color:var(--blue)">${fmtCFA(planifié)}</div>
+        </div>
+        <div style="background:var(--brd);border-radius:9px;padding:10px 11px">
+          <div style="font-size:.58rem;color:var(--t3);font-weight:700;text-transform:uppercase;letter-spacing:.8px;margin-bottom:3px">Réalisé (hors TR)</div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:.85rem;font-weight:800;color:${réalisé>planifié?"var(--red)":"var(--green)"}">${fmtCFA(réalisé)}</div>
+        </div>
+        <div style="background:${imprévus>0?"var(--pl)":"var(--brd)"};border-radius:9px;padding:10px 11px">
+          <div style="font-size:.58rem;color:var(--t3);font-weight:700;text-transform:uppercase;letter-spacing:.8px;margin-bottom:3px">Imprévus Tréso</div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:.85rem;font-weight:800;color:var(--purple)">${imprévus>0?fmtCFA(imprévus):"0 CFA"}</div>
+        </div>
+      </div>
+      <div style="margin-top:9px;padding:8px 11px;border-radius:8px;background:${écart_net>=0?"var(--gl)":"var(--rl)"};display:flex;justify-content:space-between;align-items:center">
+        <span style="font-size:.71rem;font-weight:700;color:${écart_net>=0?"var(--green)":"var(--red)"}">${écart_net>=0?"✅ Surplus net vs plan":"🔴 Dépassement net vs plan"}</span>
+        <span style="font-family:'JetBrains Mono',monospace;font-size:.88rem;font-weight:900;color:${écart_net>=0?"var(--green)":"var(--red)"}">${écart_net>=0?"+":""}${fmtCFA(écart_net)}</span>
+      </div>
+      ${imprévus>0?`<div style="margin-top:6px;font-size:.65rem;color:var(--t3)">💬 Les imprévus Trésorerie (${fmtCFA(imprévus)}) absorbent une partie de votre marge budgétaire.</div>`:""}
+    </div>` : ""}
+
     <div class="cbl-g" id="cbl-g"></div>
     <div class="card" style="padding:13px 15px;margin-bottom:12px" id="ratio-card"></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
@@ -1259,11 +1293,16 @@ function renderDashCharts() {
     type:"bar", data:{labels:yrs,
       datasets:CTRS.map((ctr,i)=>({
         label:CTR_CFG[ctr].name, stack:"s",
-        data:yrs.map(y=>getEntries(y).filter(e=>e.centre===ctr).reduce((s,e)=>s+e.total_actual,0)/1e6),
+        data:yrs.map(y=>{
+          const base=getEntries(y).filter(e=>e.centre===ctr&&!e._isTresorerie).reduce((s,e)=>s+e.total_actual,0);
+          const tr=ctr==="AUTRES DEPENSES"?getEntries(y).filter(e=>e._isTresorerie).reduce((s,e)=>s+e.total_actual,0):0;
+          return (base+tr)/1e6;
+        }),
         backgroundColor:colCtr[i]+"99",borderColor:colCtr[i],borderWidth:1,borderRadius:2
       }))
     }, options:{responsive:true,maintainAspectRatio:false,
-      plugins:{legend:{labels:{font:{size:9},color:"var(--t2)",boxWidth:9}}},
+      plugins:{legend:{labels:{font:{size:9},color:"var(--t2)",boxWidth:9}},
+        tooltip:{callbacks:{label:ctx=>`${ctx.dataset.label}: ${ctx.raw.toFixed(2)} M CFA`}}},
       scales:{x:{stacked:true,grid:{display:false},ticks:{color:"var(--t2)",font:{size:8}}},y:{stacked:true,grid:{color:"rgba(0,0,0,.05)"},ticks:{color:"var(--t2)",font:{size:8},callback:v=>v+"M"}}}}
   });
 
@@ -1839,7 +1878,7 @@ function renderParams() {
   pg.innerHTML = `
     <div style="font-weight:800;font-size:.93rem;margin-bottom:12px">Paramètres</div>
     <div class="tabs">
-      ${[["identity","👤 Identité"],["rubriques","📋 Rubriques"],["categories","🏷️ Catégories"],["alerts","🚨 Alertes"],["firebase","☁️ Firebase"]].map(([id,lbl])=>`
+      ${[["identity","👤 Identité"],["rubriques","📋 Rubriques"],["categories","🏷️ Catégories"],["alerts","🚨 Alertes"],["firebase","☁️ Firebase"],["conseil","💡 Conseil"]].map(([id,lbl])=>`
         <button class="tab${paramsTab===id?" on":""}" onclick="switchParamsTab('${id}')">${lbl}</button>
       `).join("")}
     </div>
@@ -1861,7 +1900,7 @@ function switchParamsTab(t) {
 function renderParamsTab() {
   const c = document.getElementById("params-content");
   if(!c) return;
-  const fn = {identity:paramsIdentity, rubriques:paramsRubriques, categories:paramsCats, alerts:paramsAlerts, firebase:paramsFirebase};
+  const fn = {identity:paramsIdentity, rubriques:paramsRubriques, categories:paramsCats, alerts:paramsAlerts, firebase:paramsFirebase, conseil:paramsConseil};
   if(fn[paramsTab]) fn[paramsTab](c);
 }
 
@@ -2027,6 +2066,91 @@ function saveAlerts() {
   prefs.alertRequired  = document.getElementById("p-req").checked;
   scheduleSync();
   toast("Alertes sauvegardées ✓");
+}
+
+function paramsConseil(c) {
+  // Analyse des données historiques 2020-2026
+  const years = Object.keys(INIT_DATA).map(Number).sort();
+  const avgActual = years.reduce((s,y) => s + (INIT_DATA[y]?.total_actual||0), 0) / years.length;
+  const avgPlanned = years.reduce((s,y) => s + (INIT_DATA[y]?.total_planned||0), 0) / years.length;
+  const avgEcart   = avgPlanned - avgActual;
+
+  // Taux d'exécution moyen
+  const execRate = Math.round(avgActual / avgPlanned * 100);
+
+  // Dettes moyennes
+  const avgDettes = years.reduce((s,y) => s + ((INIT_DATA[y]?.by_centre?.["DETTES"]||0)), 0) / years.length;
+  const debtRatio = Math.round(avgDettes / avgActual * 100);
+
+  // Calcul de la mensualité du prêt bancaire (2026)
+  const pretMensuel = 375000; // 14.5M prêt actuel
+
+  // Marge budgétaire moyenne disponible si on exécute 90% du plan
+  const margeMensuelle = Math.round((avgPlanned * 0.10) / 12);
+
+  // Données 2024 (avec prêt bancaire 10M)
+  const dette2024 = INIT_DATA["2024"]?.by_centre?.["DETTES"] || 0;
+  const dette2025 = INIT_DATA["2025"]?.by_centre?.["DETTES"] || 0;
+
+  const conseils = [
+    {
+      ic:"📊", col:"#2D4FC8", bg:"#EEF2FF",
+      titre:"Votre Profil Budgétaire (2020–2026)",
+      corps:`Vos dépenses moyennes annuelles se situent autour de <strong>${fmtCFA(Math.round(avgActual))}</strong> pour un budget planifié de <strong>${fmtCFA(Math.round(avgPlanned))}</strong>. Votre taux d'exécution budgétaire est de <strong>${execRate}%</strong>, ce qui signifie que vous dépensez en moyenne <strong>${100-execRate}% de moins</strong> que prévu — une discipline remarquable.`
+    },
+    {
+      ic:"🏦", col:debtRatio>25?"#CC3333":"#C97B0A", bg:debtRatio>25?"#FFE5E5":"#FEF3DC",
+      titre:"Charge d'Endettement",
+      corps:`Vos dettes représentent en moyenne <strong>${debtRatio}%</strong> de vos dépenses annuelles. En 2024-2025, votre prêt bancaire (${fmtCFA(pretMensuel)}/mois) est bien honoré. <strong>Priorité absolue :</strong> liquider les dettes BIRA et SORA dès que possible pour libérer une capacité d'investissement nette.`
+    },
+    {
+      ic:"🪣", col:"#1A6B3C", bg:"#D4EDDA",
+      titre:"Fonds d'Urgence — Priorité n°1",
+      corps:`Vous n'avez pas de rubrique d'épargne systématique dans vos données. Objectif recommandé : <strong>3 mois de dépenses vitales = ${fmtCFA(Math.round(avgActual*3/12))}</strong>. <strong>Action concrète :</strong> dès que le prêt BIRA sera soldé, affecter ces ${fmtCFA(pretMensuel)}/mois à un compte d'épargne dédié. Constitution du fonds en ~${Math.ceil(avgActual*3/12/pretMensuel)} mois.`
+    },
+    {
+      ic:"💡", col:"#5C3D9C", bg:"#EDE7F6",
+      titre:"Marge d'Investissement Possible",
+      corps:`Votre écart budgétaire moyen (non dépensé) est de ${fmtCFA(Math.round(avgEcart/12))}/mois. Si vous formalisez cette marge : 
+      <br>• <strong>50% → Fonds d'urgence</strong> : ${fmtCFA(Math.round(avgEcart/24))}/mois
+      <br>• <strong>30% → Investissement progressif</strong> : ${fmtCFA(Math.round(avgEcart*0.3/12))}/mois (tontines, OPCVM, immobilier)
+      <br>• <strong>20% → Loisirs/Famille</strong> : ${fmtCFA(Math.round(avgEcart*0.2/12))}/mois`
+    },
+    {
+      ic:"🎯", col:"#C97B0A", bg:"#FEF3DC",
+      titre:"Actions Prioritaires 2026",
+      corps:`<strong>1.</strong> Continuer le remboursement ponctuel du prêt 14,5M (${fmtCFA(pretMensuel)}/mois — fin estimée 2029)<br>
+      <strong>2.</strong> Solder BIRA (${fmtCFA(1000000)}) avant fin 2026<br>
+      <strong>3.</strong> Ouvrir un compte d'épargne dédié (Caisse d'Épargne, La Poste, ou PAMECAS)<br>
+      <strong>4.</strong> Maintenir le module Trésorerie actif pour capter toutes les dépenses imprévues<br>
+      <strong>5.</strong> Revoir le budget Scolarité en janvier (poste à la hausse tendancielle)`
+    },
+    {
+      ic:"⚠️", col:"#CC3333", bg:"#FFE5E5",
+      titre:"Points de Vigilance",
+      corps:`<strong>CONTRIBUTION DES FRÈRES</strong> : recettes prévues 2020-2026 jamais encaissées (${fmtCFA(Math.round((2365000+2075000+2000000+1350000+930000)/5))} en moyenne/an). Ne planifiez plus ces recettes dans votre budget — traitez-les comme un bonus si elles arrivent.<br><br>
+      <strong>Scolarité</strong> : poste en forte croissance (+100% entre 2021 et 2025). Prévoir une enveloppe croissante chaque année.`
+    }
+  ];
+
+  c.innerHTML = `
+    <div style="margin-bottom:14px">
+      <div style="font-weight:800;font-size:.9rem;margin-bottom:3px">💡 Conseil Financier Personnalisé</div>
+      <div style="font-size:.67rem;color:var(--t3)">Analyse basée sur vos données réelles 2020–2026 · Généré par FSEYE</div>
+    </div>
+    ${conseils.map(conseil=>`
+      <div class="card" style="padding:14px 15px;margin-bottom:11px;border-left:3px solid ${conseil.col}">
+        <div style="display:flex;align-items:center;gap:7px;margin-bottom:8px">
+          <span style="font-size:1.3rem">${conseil.ic}</span>
+          <div style="font-weight:800;font-size:.82rem;color:${conseil.col}">${conseil.titre}</div>
+        </div>
+        <div style="font-size:.75rem;color:var(--t1);line-height:1.65;background:${conseil.bg};padding:10px 12px;border-radius:8px">${conseil.corps}</div>
+      </div>
+    `).join("")}
+    <div style="text-align:center;padding:10px;font-size:.62rem;color:var(--t3);margin-top:6px">
+      ℹ️ Ces conseils sont basés sur l'analyse de vos données historiques FSEYE. Consultez un conseiller financier pour des décisions importantes.
+    </div>
+  `;
 }
 
 function paramsFirebase(c) {
@@ -2362,6 +2486,25 @@ function trSubscribeDeltas() {
 }
 
 function trLoadCategories() {
+  // Unification : utiliser les catégories globales (prefs.cats) si disponibles
+  // Cela évite la duplication entre Paramètres et Trésorerie
+  if(prefs && prefs.cats && prefs.cats.length > 0) {
+    // Convertir le format prefs.cats → format trCategories
+    trCategories = prefs.cats.map(c => ({
+      id: c.id || c.nom,
+      nom: c.nom,
+      ic: c.ic || "📦",
+      type: "both"  // Les catégories globales s'appliquent aux revenus ET dépenses
+    }));
+    // Ajouter les catégories de revenus spécifiques si absentes
+    const revIds = ["sal","fre","inv","aut_rev"];
+    const revCats = [{id:"sal",nom:"Salaire",ic:"💼",type:"rev"},{id:"fre",nom:"Freelance",ic:"💻",type:"rev"},
+      {id:"inv",nom:"Investissement",ic:"📈",type:"rev"},{id:"aut_rev",nom:"Autres revenus",ic:"💰",type:"rev"}];
+    revCats.forEach(rc => { if(!trCategories.find(c=>c.id===rc.id)) trCategories.push(rc); });
+    trPopulateCatSelect();
+    return;
+  }
+  // Fallback : charger depuis TR_Categories RTDB (ancienne méthode)
   if(!currentUser) return;
   const path = `${TR_PATH.CATEGORIES}/${currentUser.uid}/liste`;
   firebase.database().ref(path).once("value").then(snap => {
@@ -2373,12 +2516,17 @@ function trLoadCategories() {
 }
 
 function trLoadPrefs() {
-  if(!currentUser) return;
-  const path = `${TR_PATH.PREFS}/${currentUser.uid}`;
-  firebase.database().ref(path).once("value").then(snap => {
-    const data = snap.val();
-    if(data) trPrefs = { ...trPrefs, ...data };
-  });
+  // Stockage du seuil dans prefs principal (évite permission_denied sur TR_Preferences)
+  if(prefs && prefs.trSeuil) trPrefs = { ...trPrefs, seuil: prefs.trSeuil };
+}
+
+function trSaveSeuil() {
+  const v = parseInt(document.getElementById("tr-p-seuil")?.value) || 500000;
+  trPrefs.seuil = v;
+  // Sauvegarder dans prefs principal (nœud fseye/{uid}/prefs) — pas besoin de TR_Preferences
+  prefs.trSeuil = v;
+  scheduleSync();
+  toast("✅ Seuil mis à jour : " + trFmtCFA(v));
 }
 
 function trDefaultCats() {
@@ -2849,23 +2997,15 @@ function trRenderCats() {
 
 function trAddCat() { trCategories.push({id:`cat_${Date.now()}`,nom:"Nouvelle",ic:"📌",type:"both"}); trRenderCats(); trPopulateCatSelect(); }
 
-async function trSaveCats() {
-  if(!currentUser) { toast("Connexion requise."); return; }
-  // Sauvegarde simple en écrasant la liste (avec un objet)
-  const updates = {};
-  trCategories.forEach(c => { updates[`${TR_PATH.CATEGORIES}/${currentUser.uid}/liste/${c.id || `cat_${Date.now()}`}`] = c; });
-  await firebase.database().ref().update(updates);
+function trSaveCats() {
+  // Sauvegarder dans prefs.cats (unifié avec le module Paramètres)
+  // Filtrer les catégories spécifiques revenus (on ne les stocke pas dans prefs.cats globales)
+  prefs.cats = trCategories.filter(c => c.type !== "rev").map(c => ({
+    id: c.id, nom: c.nom, ic: c.ic || "📦"
+  }));
+  scheduleSync();
   trPopulateCatSelect();
   toast("✅ Catégories sauvegardées !");
-}
-
-async function trSaveSeuil() {
-  const v = parseFloat(document.getElementById("tr-p-seuil")?.value)||500000;
-  trPrefs.seuil = v;
-  if(currentUser) {
-    await firebase.database().ref(`${TR_PATH.PREFS}/${currentUser.uid}`).update({seuil:v});
-  }
-  toast("✅ Seuil mis à jour : " + trFmtCFA(v));
 }
 
 // ──────────────────────────────────────────────────────────
