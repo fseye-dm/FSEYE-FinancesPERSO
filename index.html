@@ -38,7 +38,32 @@
   --sab:env(safe-area-inset-bottom);
 }
 [data-theme=dark]{--bg:#0E1015;--card:#161A22;--t1:#F0F4F8;--t2:#8A97AA;--t3:#5A6678;--brd:rgba(255,255,255,.07)}
-[data-theme=ocean]{--bg:#081929;--card:#0F2540;--t1:#DFF1FA;--t2:#7DB5CC;--t3:#4A7A94;--brd:rgba(11,110,135,.3)}
+[data-theme=ocean]{
+  --bg:#E8F8FF;--card:#FFFFFF;--sidebar:#0A4D68;
+  --t1:#0A2F3D;--t2:#1B6B8A;--t3:#5B9BB5;
+  --brd:#B8E4F5;--brd2:#9DD4EC;
+  --sh:0 2px 12px rgba(10,77,104,.10);
+  --green:#07835E;--gm:#0AA876;--gl:#D4F5EC;
+  --red:#D62B2B;--rl:#FFECEC;
+  --blue:#1A5FC8;--bl:#E4EDFF;
+  --amber:#B87A00;--al:#FFF4CC;
+  --teal:#007A9E;--purple:#5C3D9C;--pl:#EDE7F6;
+  --sidebar-text:#E0F4FF;--sidebar-active:rgba(255,255,255,.15)
+}
+/* Ocean: fond dégradé aquarium + petits poissons décoratifs */
+[data-theme=ocean] body{background:linear-gradient(160deg,#CCF0FF 0%,#E8F8FF 40%,#D8F5F0 100%)}
+[data-theme=ocean] .sb{background:linear-gradient(180deg,#063B52 0%,#0A4D68 60%,#0B5F7A 100%)}
+[data-theme=ocean] .topbar{background:rgba(232,248,255,.95);border-bottom:1px solid #B8E4F5}
+[data-theme=ocean] .kcard{background:#fff;border-color:#C5EBFA}
+[data-theme=ocean] .card{background:#fff;border-color:#C5EBFA}
+[data-theme=ocean] .cbl{background:#fff;border-color:#C5EBFA}
+/* Bulles décoratives aquarium (pseudo-éléments sur main) */
+[data-theme=ocean] .main::before{
+  content:"🐠 🐟 🐡";position:fixed;top:60%;right:2%;font-size:1.6rem;
+  opacity:.08;pointer-events:none;z-index:0;animation:fishFloat 8s ease-in-out infinite alternate;
+  letter-spacing:8px;
+}
+@keyframes fishFloat{from{transform:translateY(0) rotate(-5deg)}to{transform:translateY(-20px) rotate(5deg)}}
 html{scroll-behavior:smooth}
 body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(--t1);font-size:14px;min-height:100vh;min-height:100dvh;-webkit-font-smoothing:antialiased;overflow-x:hidden}
 ::-webkit-scrollbar{width:4px;height:4px}
@@ -97,7 +122,7 @@ input,button,select{font-family:inherit;-webkit-tap-highlight-color:transparent}
 .main{margin-left:210px;min-height:100vh}
 .topbar{position:sticky;top:0;z-index:40;background:rgba(242,240,235,.93);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-bottom:1px solid var(--brd);padding:10px 20px;padding-top:max(10px,var(--sat));display:flex;align-items:center;justify-content:space-between;gap:10px}
 [data-theme=dark] .topbar{background:rgba(14,16,21,.93)}
-[data-theme=ocean] .topbar{background:rgba(8,25,41,.93)}
+[data-theme=ocean] .topbar{background:rgba(232,248,255,.95);backdrop-filter:blur(12px)}
 .pg-ttl{font-family:'DM Serif Display',serif;font-size:1rem;color:var(--t1)}
 .mpills{display:flex;gap:2px;flex-wrap:wrap}
 .mp{padding:3px 8px;border-radius:99px;font-size:.63rem;font-weight:700;cursor:pointer;border:1.5px solid var(--brd);color:var(--t2);transition:all .13s;min-height:28px;background:transparent}
@@ -643,6 +668,32 @@ input,button,select{font-family:inherit;-webkit-tap-highlight-color:transparent}
 // ═══════════════════════════════════════════════════════════════
 // FIREBASE CONFIGURATION — REMPLACER PAR VOS VRAIES CLÉS
 // ═══════════════════════════════════════════════════════════════
+/*
+ * ════════════════════════════════════════════════════════════════
+ * RÈGLES DE SÉCURITÉ FIREBASE REALTIME DATABASE (à appliquer dans
+ * la console Firebase → Realtime Database → Rules)
+ * ════════════════════════════════════════════════════════════════
+ * {
+ *   "rules": {
+ *     "fseye": {
+ *       "$uid": {
+ *         ".read":  "auth != null && auth.uid === $uid",
+ *         ".write": "auth != null && auth.uid === $uid"
+ *       }
+ *     },
+ *     "TR_Transactions": {
+ *       "$uid": {
+ *         ".read":  "auth != null && auth.uid === $uid",
+ *         ".write": "auth != null && auth.uid === $uid"
+ *       }
+ *     },
+ *     "TR_Archives":  { "$uid": { ".read":"auth.uid===$uid",".write":"auth.uid===$uid" }},
+ *     "TR_Agregats":  { "$uid": { ".read":"auth.uid===$uid",".write":"auth.uid===$uid" }},
+ *     "TR_Deltas":    { "$uid": { ".read":"auth.uid===$uid",".write":"auth.uid===$uid" }},
+ *     "$other":       { ".read": false, ".write": false }
+ *   }
+ * }
+ */
 const FIREBASE_CONFIG = {
   apiKey:            "AIzaSyDuvgAdgGumtDS3h9IYE3KURxuLSg6geyM",
   authDomain:        "fseye-financeperso.firebaseapp.com",
@@ -709,6 +760,8 @@ let isDirty     = false;
 // FORMAT UTILITIES
 // ═══════════════════════════════════════════════════════════════
 const fmt    = n => (n===null||n===undefined||isNaN(n)) ? "—" : new Intl.NumberFormat("fr-FR").format(Math.round(n));
+// Sécurité XSS — échapper toujours les données utilisateur dans innerHTML
+const esc    = s => String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
 const fmtCFA = n => fmt(n) + " CFA";
 const sgn    = n => n > 0 ? "+" : "";
 const pctCol = (p, t=110) => p > t ? "var(--red)" : p > 100 ? "var(--amber)" : "var(--green)";
@@ -725,6 +778,7 @@ function calcEntryTotals(e) {
 }
 
 function recompute(y) {
+  invalidateEntryCache(); // invalider le cache avant recalcul
   const yd = D[y]; if(!yd) return;
   const entries = (yd.entries||[]).map(calcEntryTotals);
   yd.entries = entries;
@@ -788,13 +842,14 @@ function initFirebase() {
       }
     });
 
-    // Connection state
-    firebase.database().ref(".info/connected").on("value", snap => {
-      fbConnected = snap.val() === true;
-      updateSyncBadge(fbConnected ? "connected" : "offline");
-    });
+    // Connection state — ref stockée pour cleanup au logout
+    const _connRef = firebase.database().ref(".info/connected");
+    const _connFn  = snap => { fbConnected = snap.val()===true; updateSyncBadge(fbConnected?"connected":"offline"); };
+    _connRef.on("value", _connFn);
+    window._globalCleanup = window._globalCleanup || [];
+    window._globalCleanup.push(() => _connRef.off("value", _connFn));
 
-    console.log("Firebase initialisé");
+    // NOTE PROD: console.log supprimés — voir historique git pour debug
   } catch(e) {
     console.error("Firebase init error:", e);
     document.getElementById("loading").style.display = "none";
@@ -841,8 +896,27 @@ async function doReset() {
 
 function doLogout() {
   if(!confirm("Se déconnecter ?")) return;
-  if(fbRef) fbRef.off();
-  fbAuth.signOut();
+
+  // 1. Annuler le timer d'inactivité
+  if(typeof _idleTimer !== "undefined") clearTimeout(_idleTimer);
+
+  // 2. Nettoyer les listeners globaux (connected, etc.)
+  if(window._globalCleanup) {
+    window._globalCleanup.forEach(fn => { try { fn(); } catch(e){} });
+    window._globalCleanup = [];
+  }
+
+  // 3. Nettoyer les listeners Trésorerie
+  if(typeof trListeners !== "undefined" && trListeners.length) {
+    trListeners.forEach(u => { try { u(); } catch(e){} });
+    trListeners.length = 0;
+  }
+
+  // 4. Nettoyer le listener principal de données
+  if(fbRef) { try { fbRef.off(); } catch(e){} fbRef = null; }
+
+  // 5. Déconnecter Firebase Auth
+  if(typeof fbAuth !== "undefined" && fbAuth) fbAuth.signOut();
 }
 
 function toggleLoginMode() {
@@ -879,15 +953,23 @@ function startSync(uid) {
       pushToFirebase();
     }
     refreshActivePage();
-    console.log("Firebase: données synchronisées");
   });
 
   updateSyncBadge("connected");
 }
 
+// Compteur pour éviter le spam de toasts "Sauvegardé"
+let _syncToastCount = 0;
 function pushToFirebase() {
   if(!currentUser || !fbDB || typeof firebase === "undefined") return;
   const ref = fbDB.ref("fseye/" + currentUser.uid);
+
+  // Timeout 10s — évite un blocage silencieux sur réseau lent
+  const timeoutId = setTimeout(() => {
+    updateSyncBadge("error");
+    toast("⏱️ Timeout sync — données en attente");
+  }, 10000);
+
   ref.set({
     years: D,
     revs: revs,
@@ -895,22 +977,33 @@ function pushToFirebase() {
     prefs: prefs,
     lastUpdated: firebase.database.ServerValue.TIMESTAMP
   }).then(() => {
+    clearTimeout(timeoutId);
     updateSyncBadge("connected");
-    toast("☁️ Sauvegardé sur Firebase");
+    // Toast discret, pas plus d'une fois toutes les 5 secondes
+    _syncToastCount++;
+    if(_syncToastCount === 1) {
+      setTimeout(() => { _syncToastCount = 0; }, 5000);
+      toast("☁️ Sauvegardé");
+    }
   }).catch(e => {
+    clearTimeout(timeoutId);
     updateSyncBadge("error");
     toast("❌ Erreur sync: " + e.message);
   });
 }
 
 function scheduleSync() {
+  if(!currentUser || typeof firebase === "undefined") return; // guard: pas de sync sans user
   isDirty = true;
-  document.getElementById("save-dot").style.display = "block";
+  const dot = document.getElementById("save-dot");
+  if(dot) dot.style.display = "block";
   clearTimeout(saveTimer);
+  // Debounce 1.2s — évite les syncs multiples lors d'une saisie rapide
   saveTimer = setTimeout(() => {
+    if(!currentUser) return; // re-vérifier au moment du flush
     pushToFirebase();
     isDirty = false;
-    document.getElementById("save-dot").style.display = "none";
+    if(dot) dot.style.display = "none";
   }, 1200);
 }
 
@@ -958,6 +1051,7 @@ function showLogin(msg, isLocal=false) {
 function showApp(withFirebase) {
   document.getElementById("login").style.display = "none";
   document.getElementById("app").style.display   = "block";
+  if(typeof resetIdleTimer === "function") resetIdleTimer(); // redémarrer le timer inactivité
   initApp(withFirebase);
 }
 
@@ -1028,6 +1122,7 @@ function renderPage(id) {
 }
 
 function refreshActivePage() {
+  invalidateEntryCache(); // s'assurer que le cache est propre avant tout rendu
   const active = document.querySelector(".ni.on");
   if(active) renderPage(active.id.replace("ni-",""));
 }
@@ -1091,7 +1186,24 @@ function closeModal(id) { document.getElementById(id).classList.remove("on"); }
 // ═══════════════════════════════════════════════════════════════
 // COMPUTED HELPERS
 // ═══════════════════════════════════════════════════════════════
-function getEntries(y) { return D[y]?.entries||[]; }
+// Accès direct — D[y] est déjà une référence, pas de copie
+// Note : ne pas memoïser car D est muté directement (pushToFirebase écrit D tel quel)
+function getEntries(y) { return D[y]?.entries || []; }
+
+// Cache de filtrage pour les opérations coûteuses du Dashboard
+// Invalidé à chaque recompute() ou chargement Firebase
+let _entryCache = {}; // {year_type: []}
+function invalidateEntryCache() { _entryCache = {}; }
+function getEntriesFiltered(y, type) {
+  const key = y + "_" + type;
+  if(_entryCache[key]) return _entryCache[key];
+  const all = getEntries(y);
+  const res = type === "normal" ? all.filter(e=>!e._isTresorerie)
+            : type === "tr"     ? all.filter(e=>e._isTresorerie)
+            : all;
+  _entryCache[key] = res;
+  return res;
+}
 
 function getMonthTotals(y, m) {
   // Les entrées synthétiques TR sont comptées séparément via vitM / trEntries
@@ -1143,10 +1255,13 @@ function renderDashboard() {
   const bal = rev - mtAll.actual;               // solde réel inclut les dépenses imprévues TR
   const thresh = getThresh();
 
-  // Vitales ratio (hors TR)
-  const vitM = getEntries(yr).filter(e=>!e._isTresorerie && (e.categorie==="VITALE"||e.categorie==="IMPORTANTE"))
+  // Non-essentielles : basé sur prefs.nonEssentialCats (paramétrable)
+  const neCats = prefs.nonEssentialCats || ["LOISIRS","FACULTATIVE"];
+  const vitM = getEntries(yr).filter(e=>!e._isTresorerie && !neCats.includes(e.categorie))
     .reduce((s,e)=>s+(getMD(e,mo).actual||0),0);
-  const nvPct = mtAll.actual>0 ? Math.round((mtAll.actual-vitM)/mtAll.actual*100) : 0;
+  const nonEssM = getEntries(yr).filter(e=>!e._isTresorerie && neCats.includes(e.categorie))
+    .reduce((s,e)=>s+(getMD(e,mo).actual||0),0);
+  const nvPct = mtAll.actual>0 ? Math.round(nonEssM/mtAll.actual*100) : 0;
 
   // Compter les entrées Trésorerie ce mois
   const trEntries  = getEntries(yr).filter(e => e._isTresorerie);
@@ -1217,9 +1332,13 @@ function renderDashboard() {
 
     <div class="cbl-g" id="cbl-g"></div>
     <div class="card" style="padding:13px 15px;margin-bottom:12px" id="ratio-card"></div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
-      ${CTRS.map((ctr,i)=>`<div class="card" style="padding:11px"><div style="font-size:.6rem;font-weight:700;color:${CTR_CFG[ctr].col};margin-bottom:5px">${CTR_CFG[ctr].ic} ${CTR_CFG[ctr].name}</div><div style="height:60px"><canvas id="cch-${i}"></canvas></div></div>`).join("")}
+
+    <!-- Histogramme groupé mensuel par centre (remplace les 4 mini-graphiques) -->
+    <div class="card" style="margin-bottom:12px">
+      <div class="card-hd"><div><div class="ct">📊 Dépenses par centre — mensuel ${yr}</div><div class="cs">Comparaison Thiès · Dakar · Dettes · Trésorerie</div></div></div>
+      <div class="cp" style="height:200px"><canvas id="ch-grouped"></canvas></div>
     </div>
+
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
       <div class="card"><div class="card-hd"><div><div class="ct">Tendance annuelle</div><div class="cs">Planifié vs Réalisé (M CFA)</div></div></div><div class="cp" style="height:170px"><canvas id="ch-trend"></canvas></div></div>
       <div class="card"><div class="card-hd"><div><div class="ct">Par centre</div><div class="cs">Répartition empilée</div></div></div><div class="cp" style="height:170px"><canvas id="ch-ctr"></canvas></div></div>
@@ -1274,15 +1393,36 @@ function renderDashboard() {
 }
 
 function renderDashCharts() {
-  // Destroy existing
-  ["ch-trend","ch-ctr","cch-0","cch-1","cch-2","cch-3"].forEach(id=>{
+  ["ch-trend","ch-ctr","ch-grouped","cch-0","cch-1","cch-2","cch-3"].forEach(id=>{
     if(charts[id]) { charts[id].destroy(); delete charts[id]; }
   });
-
-  const yrs = Object.keys(D).sort();
+  const yrs    = Object.keys(D).sort();
   const colCtr = ["#1A6B3C","#0B6E87","#CC3333","#6D32C8"];
+  const ctrLabels = ["Thiès","Dakar","Dettes","Trésorerie"];
 
-  // Trend chart
+  // Histogramme groupé mensuel par centre
+  const elG = document.getElementById("ch-grouped");
+  if(elG) {
+    charts["ch-grouped"] = new Chart(elG, {
+      type:"bar",
+      data:{ labels:MNF, datasets:CTRS.map((ctr,ci)=>({
+        label:ctrLabels[ci],
+        data:MK.map(m=>{
+          const base = getCentreMonthTotal(yr,m,ctr);
+          const tr = ctr==="AUTRES DEPENSES" ? getEntries(yr).filter(e=>e._isTresorerie).reduce((s,e)=>s+(getMD(e,m).actual||0),0) : 0;
+          return (base+tr)/1e3;
+        }),
+        backgroundColor:colCtr[ci]+"CC", borderColor:colCtr[ci], borderWidth:1.5, borderRadius:3
+      }))},
+      options:{responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{labels:{font:{size:9},color:"var(--t2)",boxWidth:10}},
+          tooltip:{callbacks:{label:ctx=>`${ctx.dataset.label}: ${ctx.raw.toFixed(0)} K CFA`}}},
+        scales:{x:{grid:{display:false},ticks:{color:"var(--t2)",font:{size:8}}},
+                y:{grid:{color:"rgba(0,0,0,.05)"},ticks:{color:"var(--t2)",font:{size:8},callback:v=>v+"K"}}}}
+    });
+  }
+
+  // Tendance annuelle
   const ctxT = document.getElementById("ch-trend");
   if(ctxT) charts["ch-trend"] = new Chart(ctxT, {
     type:"bar", data:{labels:yrs, datasets:[
@@ -1293,7 +1433,7 @@ function renderDashCharts() {
       scales:{x:{grid:{display:false},ticks:{color:"var(--t2)",font:{size:8}}},y:{grid:{color:"rgba(0,0,0,.05)"},ticks:{color:"var(--t2)",font:{size:8},callback:v=>v+"M"}}}}
   });
 
-  // Centre chart
+  // Répartition empilée
   const ctxC = document.getElementById("ch-ctr");
   if(ctxC) charts["ch-ctr"] = new Chart(ctxC, {
     type:"bar", data:{labels:yrs,
@@ -1308,23 +1448,8 @@ function renderDashCharts() {
       }))
     }, options:{responsive:true,maintainAspectRatio:false,
       plugins:{legend:{labels:{font:{size:9},color:"var(--t2)",boxWidth:9}},
-        tooltip:{callbacks:{label:ctx=>`${ctx.dataset.label}: ${ctx.raw.toFixed(2)} M CFA`}}},
+        tooltip:{callbacks:{label:ctx=>`${ctx.dataset.label}: ${(ctx.raw).toFixed(2)} M CFA`}}},
       scales:{x:{stacked:true,grid:{display:false},ticks:{color:"var(--t2)",font:{size:8}}},y:{stacked:true,grid:{color:"rgba(0,0,0,.05)"},ticks:{color:"var(--t2)",font:{size:8},callback:v=>v+"M"}}}}
-  });
-
-  // Mini bar per centre
-  CTRS.forEach((ctr,i) => {
-    const el = document.getElementById("cch-"+i);
-    if(!el) return;
-    const data = MK.map(m => ctr==="DETTES" ?
-      getEntries(yr).filter(e=>e.centre===ctr).reduce((s,e)=>s+(getMD(e,m).actual||0),0)/1e3 :
-      getCentreMonthTotal(yr,m,ctr)/1e3
-    );
-    charts["cch-"+i] = new Chart(el, {
-      type:"bar", data:{labels:MNF, datasets:[{data,backgroundColor:colCtr[i]+"88",borderColor:colCtr[i],borderWidth:1,borderRadius:2}]},
-      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
-        scales:{x:{display:true,grid:{display:false},ticks:{color:"var(--t2)",font:{size:7}}},y:{display:false}}}
-    });
   });
 }
 
@@ -1371,9 +1496,9 @@ function renderSaisie() {
 
     <!-- Tabs -->
     <div class="tabs">
-      ${["💰 Revenus","🏘️ Thiès","🌆 Dakar","💳 Dettes","📦 Autres","📊 Synthèse"].map((t,i)=>`
-        <button class="tab${i===["rev","thies","dakar","dette","autres","recap"].indexOf(saisieTab)?" on":""}"
-          onclick="switchSaisieTab(['rev','thies','dakar','dette','autres','recap'][${i}])">${t}</button>
+      ${["💰 Revenus","🏘️ Thiès","🌆 Dakar","💳 Dettes","💸 Flux Tréso","📊 Synthèse"].map((t,i)=>`
+        <button class="tab${i===["rev","thies","dakar","dette","flux","recap"].indexOf(saisieTab)?" on":""}"
+          onclick="switchSaisieTab(['rev','thies','dakar','dette','flux','recap'][${i}])">${t}</button>
       `).join("")}
     </div>
 
@@ -1386,7 +1511,7 @@ function renderSaisie() {
 function switchSaisieTab(t) {
   saisieTab = t;
   document.querySelectorAll(".tabs .tab").forEach((btn,i) => {
-    btn.classList.toggle("on", ["rev","thies","dakar","dette","autres","recap"][i] === t);
+    btn.classList.toggle("on", ["rev","thies","dakar","dette","flux","recap"][i] === t);
   });
   renderSaisieTab();
 }
@@ -1396,15 +1521,73 @@ function renderSaisieTab() {
   if(!c) return;
   const CTRS_TABS = {
     thies:"PARENTS A THIES", dakar:"FAMILLE A DAKAR",
-    dette:"DETTES", autres:"AUTRES DEPENSES"
+    dette:"DETTES"
   };
   if(saisieTab==="rev") {
     renderRevBloc(c);
   } else if(CTRS_TABS[saisieTab]) {
     renderDepBloc(c, CTRS_TABS[saisieTab]);
+  } else if(saisieTab==="flux") {
+    renderFluxTresorerie(c);
   } else if(saisieTab==="recap") {
     renderSaisieRecap(c);
   }
+}
+
+// Onglet FLUX TRÉSORERIE — affiche les transactions Trésorerie du mois chronologiquement
+function renderFluxTresorerie(c) {
+  // Récupérer toutes les transactions TR du mois courant depuis trTransactions
+  const txns = [...(window.trTransactions||[])].sort((a,b) => (a.date||"").localeCompare(b.date||""));
+  const total = txns.filter(t=>t.type==="dep").reduce((s,t)=>s+t.montant,0);
+  const totalRev = txns.filter(t=>t.type==="rev").reduce((s,t)=>s+t.montant,0);
+
+  if(txns.length === 0) {
+    c.innerHTML = `<div class="card" style="padding:18px;text-align:center">
+      <div style="font-size:2rem;margin-bottom:8px">💸</div>
+      <div style="font-weight:700;font-size:.85rem;margin-bottom:4px">Flux Trésorerie</div>
+      <div style="font-size:.72rem;color:var(--t3)">${MNF[MK.indexOf(mo)]} ${yr} — Aucune transaction Trésorerie ce mois</div>
+      <div style="font-size:.68rem;color:var(--t3);margin-top:8px">Les transactions saisies dans le module <strong>Trésorerie</strong> apparaîtront ici.</div>
+    </div>`;
+    return;
+  }
+
+  c.innerHTML = `<div class="card" style="overflow:hidden">
+    <div class="card-hd">
+      <div><div class="ct">💸 Flux Trésorerie</div><div class="cs">${txns.length} transaction${txns.length>1?"s":""} · ${MNF[MK.indexOf(mo)]} ${yr}</div></div>
+    </div>
+    <div style="overflow-x:auto">
+      <table class="tbl">
+        <thead><tr>
+          <th>Date</th><th style="min-width:180px">Désignation</th>
+          <th>Mode</th><th style="text-align:right">Montant</th><th>Type</th>
+        </tr></thead>
+        <tbody>
+          ${txns.map(t=>{
+            const isRev = t.type==="rev";
+            const bg    = isRev ? "background:rgba(26,107,60,.05)" : "background:rgba(204,51,51,.05)";
+            const col   = isRev ? "color:var(--green);font-weight:800" : "color:var(--red);font-weight:800";
+            const dObj  = new Date(t.date+"T00:00:00");
+            const dStr  = dObj.toLocaleDateString("fr-FR",{day:"2-digit",month:"short"});
+            const modeIc= {wave:"📱",orange:"🟠",banque:"🏦",espece:"💵"}[t.mode]||"💳";
+            return `<tr style="${bg}">
+              <td style="font-size:.72rem;white-space:nowrap">${dStr}</td>
+              <td style="font-size:.76rem;font-weight:600;word-break:break-word;max-width:220px">${esc(t.designation)||"—"}</td>
+              <td style="font-size:.72rem">${modeIc} ${t.mode||""}</td>
+              <td style="text-align:right;font-family:'JetBrains Mono',monospace;font-size:.8rem;${col}">${isRev?"+":"-"}${fmtCFA(t.montant)}</td>
+              <td><span style="font-size:.62rem;padding:2px 7px;border-radius:99px;font-weight:700;${isRev?"background:var(--gl);color:var(--green)":"background:var(--rl);color:var(--red)"}">${isRev?"REV":"DÉP"}</span></td>
+            </tr>`;
+          }).join("")}
+        </tbody>
+      </table>
+    </div>
+    <div class="tot-bar" style="display:flex;justify-content:space-between">
+      <span class="tot-lbl">Total dépenses TR</span>
+      <div style="display:flex;gap:16px;align-items:center">
+        ${totalRev>0?`<span style="font-size:.78rem;color:#a8f0d0;font-weight:700">+${fmtCFA(totalRev)} encaissés</span>`:""}
+        <span class="tot-v">${fmtCFA(total)}</span>
+      </div>
+    </div>
+  </div>`;
 }
 
 function renderRevBloc(c) {
@@ -1451,7 +1634,7 @@ function renderRevRows() {
       <td colspan="4" style="padding:0;border-bottom:none">
         <div class="note-wrap${hasNote?" open":""}" id="rev-note-wrap-${i}">
           <textarea class="note-ta" id="rev-note-ta-${i}" placeholder="💬 Commentaire sur ce revenu…"
-            onblur="saveRevNote(${i},this.value)">${note.replace(/</g,"&lt;")}</textarea>
+            onblur="saveRevNote(${i},this.value)">${esc(note)}</textarea>
         </div>
       </td>
     </tr>`;
@@ -1515,7 +1698,7 @@ function renderDepBloc(c, ctr) {
       ${trRows.map(e=>{
         const a = getMD(e,mo).actual||0;
         return `<div style="display:flex;justify-content:space-between;align-items:center;font-size:.73rem;padding:3px 0;border-bottom:1px solid rgba(0,0,0,.05)">
-          <span style="color:var(--t1);font-weight:600;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e.rubrique.substring(0,40)}</span>
+          <span style="color:var(--t1);font-weight:600;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(e.rubrique).substring(0,40)}</span>
           <span style="font-family:'JetBrains Mono',monospace;color:var(--red);font-weight:700;margin-left:8px">${fmtCFA(a)}</span>
           <span class="tr-dash-badge" style="margin-left:6px">TR</span>
         </div>`;
@@ -1548,8 +1731,8 @@ function renderDepBloc(c, ctr) {
             const hasNote = note.trim().length > 0;
             return `<tr class="${rcl}" id="drow-${idx}">
               <td style="text-align:right">
-                <div style="font-weight:700;font-size:.79rem">${e.rubrique.substring(0,38)}</div>
-                ${e.beneficiaire?`<div style="font-size:.62rem;color:var(--t3)">${e.beneficiaire}</div>`:""}
+                <div style="font-weight:700;font-size:.79rem">${esc(e.rubrique).substring(0,40)}</div>
+                ${e.beneficiaire?`<div style="font-size:.62rem;color:var(--t3)">${esc(e.beneficiaire)}</div>`:""}
               </td>
               <td><input type="number" inputmode="numeric" class="fld fld-mo bsm" style="width:85px;padding:5px 7px;min-height:36px;font-size:.76rem"
                 id="p-${idx}" value="${p||""}" placeholder="0" onblur="upEntry(${idx})"></td>
@@ -1566,7 +1749,7 @@ function renderDepBloc(c, ctr) {
               <td colspan="6">
                 <div class="note-wrap${hasNote?" open":""}" id="note-wrap-${idx}">
                   <textarea class="note-ta" id="note-ta-${idx}" placeholder="💬 Commentaire sur cette rubrique (facultatif)…"
-                    onblur="saveNote(${idx},this.value)">${note.replace(/</g,"&lt;")}</textarea>
+                    onblur="saveNote(${idx},this.value)">${esc(note)}</textarea>
                   <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px">
                     <span style="font-size:.62rem;color:var(--t3)">Enregistré automatiquement</span>
                     ${hasNote?`<button class="btn br" style="font-size:.62rem;padding:2px 8px;min-height:24px" onclick="clearNote(${idx})">🗑️ Effacer</button>`:""}
@@ -1593,8 +1776,15 @@ function renderDepBloc(c, ctr) {
 function upEntry(idx) {
   // Guard : ne jamais modifier les entrées auto-Trésorerie
   if(D[yr]?.entries[idx]?._isTresorerie) return;
-  const p = parseFloat(document.getElementById("p-"+idx)?.value)||0;
-  const a = parseFloat(document.getElementById("a-"+idx)?.value)||0;
+  // Forcer des valeurs ≥ 0 et raisonnables (max 100M CFA par ligne)
+  const MAX_VAL = 100_000_000;
+  const pRaw = parseFloat(document.getElementById("p-"+idx)?.value)||0;
+  const aRaw = parseFloat(document.getElementById("a-"+idx)?.value)||0;
+  const p = Math.max(0, Math.min(pRaw, MAX_VAL));
+  const a = Math.max(0, Math.min(aRaw, MAX_VAL));
+  // Remettre à jour le champ si la valeur a été corrigée
+  if(pRaw !== p) { const el = document.getElementById("p-"+idx); if(el) el.value = p||""; }
+  if(aRaw !== a) { const el = document.getElementById("a-"+idx); if(el) el.value = a||""; }
   const ec = a-p;
   const thresh = getThresh();
   const pct = p>0?(a/p*100):0;
@@ -1918,7 +2108,7 @@ function renderParams() {
   pg.innerHTML = `
     <div style="font-weight:800;font-size:.93rem;margin-bottom:12px">Paramètres</div>
     <div class="tabs">
-      ${[["identity","👤 Identité"],["rubriques","📋 Rubriques"],["categories","🏷️ Catégories"],["alerts","🚨 Alertes"],["firebase","☁️ Firebase"],["conseil","💡 Conseil"]].map(([id,lbl])=>`
+      ${[["identity","👤 Identité"],["rubriques","📋 Rubriques"],["categories","🏷️ Catégories"],["alerts","🚨 Alertes"],["nonessential","⚖️ Non-essentielles"],["firebase","☁️ Firebase"],["conseil","💡 Conseil"]].map(([id,lbl])=>`
         <button class="tab${paramsTab===id?" on":""}" onclick="switchParamsTab('${id}')">${lbl}</button>
       `).join("")}
     </div>
@@ -1940,7 +2130,7 @@ function switchParamsTab(t) {
 function renderParamsTab() {
   const c = document.getElementById("params-content");
   if(!c) return;
-  const fn = {identity:paramsIdentity, rubriques:paramsRubriques, categories:paramsCats, alerts:paramsAlerts, firebase:paramsFirebase, conseil:paramsConseil};
+  const fn = {identity:paramsIdentity, rubriques:paramsRubriques, categories:paramsCats, alerts:paramsAlerts, nonessential:paramsNonEssential, firebase:paramsFirebase, conseil:paramsConseil};
   if(fn[paramsTab]) fn[paramsTab](c);
 }
 
@@ -1952,29 +2142,35 @@ function paramsIdentity(c) {
     <input id="p-name" class="fld" value="${prefs.displayName||"FSEYE"}" placeholder="FSEYE" style="margin-bottom:10px">
     <label class="lbl-s">Propriétaire / Sous-titre</label>
     <input id="p-tag" class="fld" value="${prefs.tagline||"Budget Familial"}" placeholder="Budget Familial" style="margin-bottom:16px">
-    ${currentUser?`<div style="font-size:.7rem;color:var(--t3);margin-bottom:14px">Compte : ${currentUser.email}</div>`:""}
+    ${currentUser?`<div style="font-size:.7rem;color:var(--t3);margin-bottom:14px">Compte : <strong>${currentUser.email}</strong></div>`:""}
     <button class="btn bp bfw" onclick="saveIdentity()">💾 Enregistrer</button>
+  </div>
+  <div class="card" style="padding:16px;margin-top:12px;border-left:3px solid var(--blue)">
+    <div style="font-weight:800;font-size:.84rem;margin-bottom:8px;color:var(--blue)">👥 Guide multi-utilisateurs (ex: Mariama)</div>
+    <div style="font-size:.71rem;color:var(--t1);line-height:1.75">
+      <strong>Étape 1</strong> — Firebase Console → Authentication → Users → <em>Add user</em><br>
+      Email : madiseye@gmail.com + mot de passe<br><br>
+      <strong>Étape 2</strong> — Dans le code, autoriser l'email :<br>
+      <code style="background:var(--brd);padding:3px 7px;border-radius:5px;display:block;margin:4px 0;font-size:.67rem">const ALLOWED_EMAILS = ["fseye2018@gmail.com","madiseye@gmail.com"];</code>
+      <strong>Étape 3</strong> — Mariama se connecte → ses données sont sous son UID Firebase unique → aucune interférence avec les vôtres. ✅
+    </div>
   </div>
   <div class="card" style="padding:18px;margin-top:12px">
     <div style="font-weight:700;font-size:.84rem;margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid var(--brd)">📲 Icône Application (PWA)</div>
     <div style="text-align:center;margin-bottom:12px">
       ${iconB64
-        ? `<img src="${iconB64}" class="pwa-icon-preview" id="pwa-preview-img" alt="Icône app">`
+        ? `<img src="${iconB64}" class="pwa-icon-preview" alt="Icône app">`
         : `<div style="width:72px;height:72px;border-radius:16px;background:var(--sidebar);display:flex;align-items:center;justify-content:center;font-size:2.2rem;margin:0 auto 10px">💰</div>`
       }
-      <div style="font-size:.68rem;color:var(--t3);margin-bottom:10px">${iconB64?"Icône personnalisée active":"Icône par défaut"}</div>
     </div>
     <label class="btn bp bfw" style="cursor:pointer;justify-content:center">
       📁 Choisir une image (PNG / JPG)
       <input type="file" accept="image/png,image/jpeg,image/webp" class="pwa-icon-upload" onchange="pwaUploadIcon(this)">
     </label>
     ${iconB64?`<button class="btn bg bfw" style="margin-top:8px" onclick="localStorage.removeItem('fseye_pwa_icon');pwaUpdateManifest();renderParamsTab();toast('Icône réinitialisée')">🗑️ Supprimer l'icône</button>`:""}
-    <div style="font-size:.65rem;color:var(--t3);margin-top:10px;text-align:center">L'icône sera utilisée lors de l'installation sur l'écran d'accueil Android/iOS</div>
-    ${!deferredPWAPrompt?"":""}
-    <button class="btn" style="margin-top:10px;width:100%;justify-content:center;background:var(--gl);color:var(--green);border-color:var(--green)" onclick="pwaTriggerInstall()">📲 Installer FSEYE sur cet appareil</button>
+    <button class="btn" style="margin-top:10px;width:100%;justify-content:center;background:var(--gl);color:var(--green);border-color:var(--green)" onclick="pwaTriggerInstall()">📲 Installer FSEYE</button>
   </div>`;
 }
-
 function saveIdentity() {
   const name = document.getElementById("p-name").value.trim()||"FSEYE";
   const tag  = document.getElementById("p-tag").value.trim()||"Budget Familial";
@@ -2005,7 +2201,7 @@ function paramsRubriques(c) {
             const catOpts = (prefs.cats||DEFAULT_CATS_LIST).map(cat=>`<option value="${cat.id}"${e.categorie===cat.id?" selected":""}>${cat.ic} ${cat.name}</option>`).join("");
             return `<tr>
               <td><input style="background:none;border:none;outline:none;font-weight:600;font-size:.78rem;width:100%;color:var(--t1);font-family:inherit"
-                value="${e.rubrique.replace(/"/g,"&quot;")}" onchange="updateRubNom(${ri},this.value)"></td>
+                value="${esc(e.rubrique)}" onchange="updateRubNom(${ri},this.value)"></td>
               <td><select style="background:var(--bg);border:1px solid var(--brd);border-radius:5px;padding:4px 6px;font-size:.7rem;font-family:inherit;color:var(--t1);cursor:pointer;width:100%"
                 onchange="updateRubCtr(${ri},this.value)">${ctrOpts}</select></td>
               <td><select style="background:var(--bg);border:1px solid var(--brd);border-radius:5px;padding:4px 6px;font-size:.7rem;font-family:inherit;color:var(--t1);cursor:pointer;width:100%"
@@ -2106,6 +2302,57 @@ function saveAlerts() {
   prefs.alertRequired  = document.getElementById("p-req").checked;
   scheduleSync();
   toast("Alertes sauvegardées ✓");
+}
+
+function paramsNonEssential(c) {
+  // Catégories disponibles dans l'application
+  const ALL_CATS = ["VITALE","IMPORTANTE","AUTRE","LOISIRS","FACULTATIVE","DETTES"];
+  const defaultNE = ["LOISIRS","FACULTATIVE"];
+  const saved = prefs.nonEssentialCats || defaultNE;
+
+  c.innerHTML = `
+    <div class="card" style="padding:16px">
+      <div style="font-weight:800;font-size:.88rem;margin-bottom:4px">⚖️ Dépenses Non-Essentielles</div>
+      <div style="font-size:.7rem;color:var(--t3);margin-bottom:14px">
+        Cochez les catégories considérées comme <strong>non-essentielles</strong>.
+        Le KPI &laquo; Non-essentielles &raquo; du Dashboard sera calculé selon cette sélection.
+      </div>
+      <div style="display:flex;flex-direction:column;gap:9px" id="ne-cats-list">
+        ${ALL_CATS.map(cat=>{
+          const checked = saved.includes(cat);
+          const labels = {VITALE:"🏠 VITALE (dépenses vitales)",IMPORTANTE:"⭐ IMPORTANTE",AUTRE:"📦 AUTRE",LOISIRS:"🎭 LOISIRS",FACULTATIVE:"✨ FACULTATIVE",DETTES:"💳 DETTES"};
+          return `<label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:9px 12px;border:1.5px solid ${checked?"var(--green)":"var(--brd)"};border-radius:9px;background:${checked?"var(--gl)":"var(--bg)"}">
+            <input type="checkbox" value="${cat}" ${checked?"checked":""} style="width:16px;height:16px;accent-color:var(--green)"
+              onchange="toggleNECat('${cat}',this.checked)">
+            <span style="font-size:.8rem;font-weight:${checked?"700":"600"}">${labels[cat]||cat}</span>
+          </label>`;
+        }).join("")}
+      </div>
+      <div style="margin-top:14px;padding:10px 12px;background:var(--brd);border-radius:8px;font-size:.69rem;color:var(--t3)">
+        💡 Par défaut : LOISIRS et FACULTATIVE sont non-essentielles.
+        Modifier cette liste impacte immédiatement le KPI du Dashboard.
+      </div>
+    </div>
+  `;
+}
+
+function toggleNECat(cat, checked) {
+  if(!prefs.nonEssentialCats) prefs.nonEssentialCats = ["LOISIRS","FACULTATIVE"];
+  if(checked) { if(!prefs.nonEssentialCats.includes(cat)) prefs.nonEssentialCats.push(cat); }
+  else { prefs.nonEssentialCats = prefs.nonEssentialCats.filter(c=>c!==cat); }
+  scheduleSync();
+  // Mise à jour visuelle
+  document.querySelectorAll("#ne-cats-list label").forEach(lbl => {
+    const inp = lbl.querySelector("input");
+    if(inp) {
+      const isChecked = inp.checked;
+      lbl.style.borderColor = isChecked ? "var(--green)" : "var(--brd)";
+      lbl.style.background  = isChecked ? "var(--gl)" : "var(--bg)";
+      const span = lbl.querySelector("span");
+      if(span) span.style.fontWeight = isChecked ? "700" : "600";
+    }
+  });
+  toast("✅ Préférence mise à jour — Dashboard recalculé");
 }
 
 function paramsConseil(c) {
@@ -2273,11 +2520,34 @@ function exportXL() {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// STARTUP
+// STARTUP + IDLE AUTO-LOGOUT
 // ═══════════════════════════════════════════════════════════════
+let _idleTimer = null;
+const IDLE_MS  = 2 * 60 * 1000; // 2 minutes
+
+function resetIdleTimer() {
+  clearTimeout(_idleTimer);
+  _idleTimer = setTimeout(() => {
+    if(currentUser && typeof firebase !== "undefined") {
+      firebase.auth().signOut().then(() => {
+        toast("🔒 Déconnexion automatique (inactivité)");
+        currentUser = null;
+        showLogin();
+      });
+    }
+  }, IDLE_MS);
+}
+
+function initIdleWatcher() {
+  const EVENTS = ["mousemove","mousedown","keydown","scroll","touchstart","click"];
+  EVENTS.forEach(e => window.addEventListener(e, resetIdleTimer, {passive:true}));
+  resetIdleTimer();
+}
+
 window.addEventListener("load", () => {
   initFirebase();
   initPWA();
+  initIdleWatcher();
 });
 
 // ═══════════════════════════════════════════════════════════════
@@ -2433,12 +2703,11 @@ function trInit() {
     return;
   }
   try {
-    // La RTDB est déjà connectée via la config globale (fbDB)
-    // On écoute la connectivité
-    firebase.database().ref(".info/connected").on("value", snap => {
-      trFbOk = snap.val() === true;
-      if(trFbOk) trFlushOfflineQueue();
-    });
+    // Connectivité Trésorerie — via fbDB (partagé), stocké dans trListeners
+    const _trConnRef = fbDB.ref(".info/connected");
+    const _trConnFn  = snap => { trFbOk = snap.val()===true; if(trFbOk) trFlushOfflineQueue(); };
+    _trConnRef.on("value", _trConnFn);
+    trListeners.push(() => _trConnRef.off("value", _trConnFn)); // nettoyé avec trListeners
 
     trLoadPrefs();
     trLoadCategories();
@@ -3071,7 +3340,15 @@ async function trSubmitTransaction() {
 
   if(!date)    { toast("⚠️ Veuillez saisir une date.");        return; }
   if(!desig)   { toast("⚠️ Veuillez saisir une désignation."); return; }
-  if(!montant) { toast("⚠️ Veuillez saisir un montant.");      return; }
+  if(!montant || montant <= 0) { toast("⚠️ Le montant doit être supérieur à 0."); return; }
+  if(montant > 100_000_000)    { toast("⚠️ Montant trop élevé (max 100 000 000 CFA)."); return; }
+
+  // Valider la date
+  const _dTest = new Date(date + "T00:00:00");
+  if(isNaN(_dTest.getTime())) { toast("⚠️ Date invalide."); return; }
+  if(_dTest.getFullYear() < 2015 || _dTest.getFullYear() > 2050) {
+    toast("⚠️ Date hors plage (2015-2050)."); return;
+  }
 
   const txnId = editId || `tr_${Date.now()}_${Math.random().toString(36).substr(2,5)}`;
   const dObj  = new Date(date+"T00:00:00");
@@ -3328,7 +3605,6 @@ async function trSyncDashboard(yearMonth, extraData = null) {
     updates[`tresorerie/${yearMonth}/updatedAt`]      = firebase.database.ServerValue.TIMESTAMP;
     updates[`tresorerie/lastSync`]                    = firebase.database.ServerValue.TIMESTAMP;
     await agregRef.update(updates);
-    console.log(`[trSyncDashboard] ✅ ${yearMonth}`);
   } catch(e) {
     console.error("[trSyncDashboard] ❌", e);
   }
@@ -3410,9 +3686,8 @@ function trTodayStr() {
   const d=new Date();
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
 }
-function trEsc(s) {
-  return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
-}
+// trEsc = alias de esc() pour compatibilité Trésorerie
+function trEsc(s) { return esc(s); }
 
 // ──────────────────────────────────────────────────────────
 // HOOK : S'initialiser quand l'utilisateur se connecte
