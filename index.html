@@ -947,12 +947,25 @@ function startSync(uid) {
       if(data.comments) comments= data.comments;
       if(data.prefs)    prefs   = {...prefs, ...data.prefs};
       // Apply profile
+      // Apply profile
       if(data.prefs?.displayName) applyIdentity(data.prefs.displayName, data.prefs.tagline);
+      // Initialiser prefs.cats avec les catégories par défaut si absent
+      if(!prefs.cats || prefs.cats.length === 0) {
+        prefs.cats = DEFAULT_CATS_LIST.map(c => ({id:c.id, ic:c.ic, name:c.name}));
+        // Sauvegarder immédiatement les catégories par défaut
+        setTimeout(pushToFirebase, 500);
+      }
     } else {
-      // First time — push initial data
+      // First time — initialiser les catégories par défaut + push
+      prefs.cats = DEFAULT_CATS_LIST.map(c => ({id:c.id, ic:c.ic, name:c.name}));
       pushToFirebase();
     }
-    refreshActivePage();
+    // Ne pas re-rendre si un champ de saisie est actif
+    if(_inputFocused) {
+      _pendingRefresh = true;
+    } else {
+      refreshActivePage();
+    }
   });
 
   updateSyncBadge("connected");
@@ -960,14 +973,39 @@ function startSync(uid) {
 
 // Compteur pour éviter le spam de toasts "Sauvegardé"
 let _syncToastCount = 0;
+
+// ── GARDE FOCUS : empêche les re-renders pendant la saisie ──
+let _inputFocused  = false;   // true quand un champ de saisie a le focus
+let _pendingRefresh = false;  // re-render différé pendant la saisie
+
+// Détecter focus/blur globalement sur tous les inputs
+document.addEventListener("focusin",  function(e) {
+  if(e.target && (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA" || e.target.tagName === "SELECT")) {
+    _inputFocused = true;
+  }
+});
+document.addEventListener("focusout", function(e) {
+  if(e.target && (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA" || e.target.tagName === "SELECT")) {
+    // Délai de 150ms pour laisser le focus passer d'un champ à un autre
+    setTimeout(function() {
+      const ae = document.activeElement;
+      _inputFocused = !!(ae && (ae.tagName === "INPUT" || ae.tagName === "TEXTAREA" || ae.tagName === "SELECT"));
+      if(!_inputFocused && _pendingRefresh) {
+        _pendingRefresh = false;
+        refreshActivePage();
+      }
+    }, 150);
+  }
+});
+
 function pushToFirebase() {
   if(!currentUser || !fbDB || typeof firebase === "undefined") return;
   const ref = fbDB.ref("fseye/" + currentUser.uid);
 
-  // Timeout 10s — évite un blocage silencieux sur réseau lent
+  // Sync silencieuse — pas de toast sur sauvegarde auto
   const timeoutId = setTimeout(() => {
     updateSyncBadge("error");
-    toast("⏱️ Timeout sync — données en attente");
+    // Timeout silencieux — pas de toast d'alerte sur sync auto
   }, 10000);
 
   ref.set({
@@ -979,16 +1017,11 @@ function pushToFirebase() {
   }).then(() => {
     clearTimeout(timeoutId);
     updateSyncBadge("connected");
-    // Toast discret, pas plus d'une fois toutes les 5 secondes
-    _syncToastCount++;
-    if(_syncToastCount === 1) {
-      setTimeout(() => { _syncToastCount = 0; }, 5000);
-      toast("☁️ Sauvegardé");
-    }
+    // Sauvegarde silencieuse — aucun toast affiché
   }).catch(e => {
     clearTimeout(timeoutId);
     updateSyncBadge("error");
-    toast("❌ Erreur sync: " + e.message);
+    toast("❌ Erreur sync: " + e.message); // Garder uniquement les erreurs
   });
 }
 
@@ -1868,8 +1901,7 @@ function renderSaisieRecap(c) {
 
 function saveSaisie() {
   // Already auto-saved via upEntry — just trigger sync
-  scheduleSync();
-  toast("✅ Données sauvegardées");
+  scheduleSync(); // Sauvegarde silencieuse
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -2215,10 +2247,15 @@ function paramsRubriques(c) {
 }
 
 const DEFAULT_CATS_LIST = [
-  {id:"VITALE",ic:"🏠",name:"Vitales"},{id:"IMPORTANTE",ic:"❤️",name:"Importantes"},
-  {id:"DETTES",ic:"💳",name:"Remboursements"},{id:"LOISIRS",ic:"🎉",name:"Loisirs"},
-  {id:"SCOLAIRE",ic:"📚",name:"Scolaires"},{id:"DON",ic:"🤲",name:"Dons"},
-  {id:"FACULTATIVE",ic:"✨",name:"Facultatives"},{id:"AUTRE",ic:"📦",name:"Autres"}
+  {id:"VITALE",      ic:"🏠", name:"Vitales"},
+  {id:"Supermarché", ic:"❤️", name:"Courses SUPERMARCHÉ"},
+  {id:"DETTES",      ic:"💳", name:"Remboursements"},
+  {id:"LOISIRS",     ic:"🎉", name:"Loisirs & FRUITS"},
+  {id:"SCOLAIRE",    ic:"📚", name:"Scolaires"},
+  {id:"DONS",        ic:"🤲", name:"Dons"},
+  {id:"ASR",         ic:"✨", name:"ACTIONS Sociale et Réligieuse"},
+  {id:"FAMILLES",    ic:"📦", name:"FAMILLES"},
+  {id:"ENERGIE",     ic:"📌", name:"ENERGIE"}
 ];
 
 function updateRubNom(i,v){ if(D[yr]?.entries[i]) { D[yr].entries[i].rubrique=v; scheduleSync(); } }
@@ -2281,7 +2318,7 @@ function paramsCats(c) {
 }
 
 function addCat() { prefs.cats=[...(prefs.cats||DEFAULT_CATS_LIST),{id:"CAT"+Date.now(),ic:"📌",name:"Nouvelle",col:"#888"}]; renderParamsTab(); }
-function saveCats() { scheduleSync(); toast("Catégories sauvegardées ✓"); }
+function saveCats() { scheduleSync(); trLoadCategories(); toast("Catégories sauvegardées ✓"); }
 
 function paramsAlerts(c) {
   c.innerHTML = `<div class="card" style="padding:18px">
@@ -2762,8 +2799,10 @@ async function trFlushOfflineQueue() {
     }
   }
 
-  if(trOfflineQueue.length === 0) toast("✅ Trésorerie synchronisée !");
-  else toast(`⚠️ ${trOfflineQueue.length} transaction(s) en attente.`);
+  if(trOfflineQueue.length > 0) {
+    toast(`⚠️ ${trOfflineQueue.length} transaction(s) toujours en attente de sync.`);
+  }
+  // Sync réussie : silencieuse (pas de toast)
 }
 
 // ──────────────────────────────────────────────────────────
@@ -2804,33 +2843,27 @@ function trSubscribeDeltas() {
 }
 
 function trLoadCategories() {
-  // Unification : utiliser les catégories globales (prefs.cats) si disponibles
-  // Cela évite la duplication entre Paramètres et Trésorerie
-  if(prefs && prefs.cats && prefs.cats.length > 0) {
-    // Convertir le format prefs.cats → format trCategories
-    trCategories = prefs.cats.map(c => ({
-      id: c.id || c.nom,
-      nom: c.nom,
-      ic: c.ic || "📦",
-      type: "both"  // Les catégories globales s'appliquent aux revenus ET dépenses
-    }));
-    // Ajouter les catégories de revenus spécifiques si absentes
-    const revIds = ["sal","fre","inv","aut_rev"];
-    const revCats = [{id:"sal",nom:"Salaire",ic:"💼",type:"rev"},{id:"fre",nom:"Freelance",ic:"💻",type:"rev"},
-      {id:"inv",nom:"Investissement",ic:"📈",type:"rev"},{id:"aut_rev",nom:"Autres revenus",ic:"💰",type:"rev"}];
-    revCats.forEach(rc => { if(!trCategories.find(c=>c.id===rc.id)) trCategories.push(rc); });
-    trPopulateCatSelect();
-    return;
+  // Source unique : prefs.cats (module Paramètres principal)
+  // Initialiser avec les catégories par défaut si absent
+  if(!prefs.cats || prefs.cats.length === 0) {
+    prefs.cats = DEFAULT_CATS_LIST.map(c => ({id:c.id, ic:c.ic, name:c.name}));
   }
-  // Fallback : charger depuis TR_Categories RTDB (ancienne méthode)
-  if(!currentUser) return;
-  const path = `${TR_PATH.CATEGORIES}/${currentUser.uid}/liste`;
-  firebase.database().ref(path).once("value").then(snap => {
-    const data = snap.val() || {};
-    trCategories = Object.entries(data).map(([id, val]) => ({ id, ...val }));
-    if(trCategories.length === 0) trCategories = trDefaultCats();
-    trPopulateCatSelect();
-  }).catch(() => { trCategories = trDefaultCats(); trPopulateCatSelect(); });
+  // Convertir prefs.cats → format trCategories (type "both" pour tout)
+  trCategories = prefs.cats.map(c => ({
+    id:   c.id   || c.nom || "cat",
+    nom:  c.name || c.nom || c.id,
+    ic:   c.ic   || "📦",
+    type: "both"
+  }));
+  // Ajouter les catégories de revenus spécifiques si absentes
+  const revCats = [
+    {id:"sal",     nom:"Salaire",        ic:"💼", type:"rev"},
+    {id:"fre",     nom:"Freelance",      ic:"💻", type:"rev"},
+    {id:"inv",     nom:"Investissement", ic:"📈", type:"rev"},
+    {id:"aut_rev", nom:"Autres revenus", ic:"💰", type:"rev"}
+  ];
+  revCats.forEach(rc => { if(!trCategories.find(c=>c.id===rc.id)) trCategories.push(rc); });
+  trPopulateCatSelect();
 }
 
 function trLoadPrefs() {
@@ -3279,9 +3312,13 @@ function trRenderParams(c) {
         <button class="btn bp" style="width:100%;justify-content:center" onclick="trSaveSeuil()">💾 Enregistrer</button>
       </div>
     </div>
+    <!-- Catégories gérées depuis le module Paramètres principal -->
     <div class="card" style="margin-bottom:12px">
-      <div class="card-hd"><div><div class="card-title">🏷️ Catégories</div></div><button class="btn bp" style="padding:5px 10px;font-size:.7rem" onclick="trAddCat()">+ Ajouter</button></div>
-      <div class="card-body" id="tr-cats-list"></div>
+      <div class="card-hd"><div><div class="card-title">🏷️ Catégories</div><div class="card-sub">Gérées dans le module Paramètres principal</div></div></div>
+      <div class="card-body">
+        <p style="font-size:.78rem;color:var(--t2);margin-bottom:10px">Les catégories sont partagées avec tous les modules. Pour les modifier, allez dans <strong>⚙️ Paramètres → Catégories</strong>.</p>
+        <button class="btn bg" style="width:100%;justify-content:center" onclick="goTo('params')">→ Aller aux Paramètres</button>
+      </div>
     </div>
     <div class="card">
       <div class="card-hd"><div><div class="card-title">☁️ Synchronisation</div></div></div>
@@ -3294,7 +3331,7 @@ function trRenderParams(c) {
       </div>
     </div>
   `;
-  trRenderCats();
+  // Catégories gérées depuis Paramètres principal
 }
 
 function trRenderCats() {
@@ -3316,14 +3353,9 @@ function trRenderCats() {
 function trAddCat() { trCategories.push({id:`cat_${Date.now()}`,nom:"Nouvelle",ic:"📌",type:"both"}); trRenderCats(); trPopulateCatSelect(); }
 
 function trSaveCats() {
-  // Sauvegarder dans prefs.cats (unifié avec le module Paramètres)
-  // Filtrer les catégories spécifiques revenus (on ne les stocke pas dans prefs.cats globales)
-  prefs.cats = trCategories.filter(c => c.type !== "rev").map(c => ({
-    id: c.id, nom: c.nom, ic: c.ic || "📦"
-  }));
+  // Rediriger vers les Paramètres globaux — cette fonction est conservée pour compatibilité
   scheduleSync();
   trPopulateCatSelect();
-  toast("✅ Catégories sauvegardées !");
 }
 
 // ──────────────────────────────────────────────────────────
