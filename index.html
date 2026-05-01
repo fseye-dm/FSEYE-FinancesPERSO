@@ -8,7 +8,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="FSEYE">
 <meta name="theme-color" content="#1B3A2D">
-<title>FSEYE · Budget Familial</title>
+<title>FSEYE · Budget Familial v5.1</title>
 <link id="pwa-manifest-link" rel="manifest">
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
@@ -705,7 +705,7 @@ const FIREBASE_CONFIG = {
 };
 
 // Emails autorisés (modifier si besoin)
-const ALLOWED_EMAILS = ["fseye2018@gmail.com"];
+const ALLOWED_EMAILS = ["fseye2018@gmail.com", "madiseye@gmail.com"];
 
 // ═══════════════════════════════════════════════════════════════
 // DONNÉES INITIALES (Historique 2020-2026)
@@ -725,6 +725,11 @@ const CTR_CFG = {
   "DETTES":          {ic:"💳", col:"#CC3333", name:"Dettes"},
   "AUTRES DEPENSES": {ic:"📦", col:"#6D32C8", name:"Autres"}
 };
+
+// ── Nom affiché d'un centre (perso par utilisateur via prefs.centreNames) ──
+function getCtrName(ctr) {
+  return (prefs && prefs.centreNames && prefs.centreNames[ctr]) || CTR_CFG[ctr]?.name || ctr;
+}
 const NAV_TITLES = {
   dashboard:"Tableau de Bord", saisie:"Saisie Mensuelle",
   analyse:"Analyse & Rapport", historique:"Historique", params:"Paramètres",
@@ -743,7 +748,7 @@ const CONTRIB_FRERES_REVS = {"2021_mai": 160000, "2021_jun": 100000, "2021_jul":
 
 let revs     = {};
 let comments = {};
-let prefs    = {alertThreshold:110, alertRequired:true, cats:null};
+let prefs    = {alertThreshold:110, alertRequired:true, cats:null, idleDelay:120, centreNames:{}};
 let yr       = "2026";
 let mo       = MK[new Date().getMonth()];
 let charts   = {};
@@ -1397,7 +1402,7 @@ function renderDashboard() {
     const mP  = getCentrePlanMonthTotal(yr,mo,ctr);
     const annA= getEntries(yr).filter(e=>e.centre===ctr).reduce((s,e)=>s+e.total_actual,0);
     const pct = mP>0 ? Math.round(mA/mP*100) : 0;
-    const cfg = CTR_CFG[ctr];
+    const cfg = {...CTR_CFG[ctr], name: getCtrName(ctr)};
     return `<div class="cbl" style="border-left-color:${cfg.col}">
       <span class="cbl-ic">${cfg.ic}</span>
       <div class="cbl-name">${cfg.name}</div>
@@ -1471,7 +1476,7 @@ function renderDashCharts() {
   if(ctxC) charts["ch-ctr"] = new Chart(ctxC, {
     type:"bar", data:{labels:yrs,
       datasets:CTRS.map((ctr,i)=>({
-        label:CTR_CFG[ctr].name, stack:"s",
+        label:getCtrName(ctr), stack:"s",
         data:yrs.map(y=>{
           const base=getEntries(y).filter(e=>e.centre===ctr&&!e._isTresorerie).reduce((s,e)=>s+e.total_actual,0);
           const tr=ctr==="AUTRES DEPENSES"?getEntries(y).filter(e=>e._isTresorerie).reduce((s,e)=>s+e.total_actual,0):0;
@@ -1569,22 +1574,52 @@ function renderSaisieTab() {
 
 // Onglet FLUX TRÉSORERIE — affiche les transactions Trésorerie du mois chronologiquement
 function renderFluxTresorerie(c) {
-  // Récupérer toutes les transactions TR du mois courant depuis trTransactions
-  const txns = [...(window.trTransactions||[])].sort((a,b) => (a.date||"").localeCompare(b.date||""));
-  const total = txns.filter(t=>t.type==="dep").reduce((s,t)=>s+t.montant,0);
+  // ✅ FIX v5: filtrer les transactions TR sur le mois actif de la Saisie (yr/mo)
+  // Assurer que trInit a bien été appelé
+  if(!trListeners || !trListeners.length) {
+    if(currentUser && typeof firebase !== "undefined" && fbDB) trInit();
+  }
+  const saisieYM = yr + "-" + String(MK.indexOf(mo)+1).padStart(2,"0");
+  const allTxns  = window.trTransactions || [];
+  // Filtrer par mois actif de la saisie
+  const txns = allTxns
+    .filter(t => {
+      const txYM = t.yearMonth || (t.date||"").slice(0,7);
+      return txYM === saisieYM;
+    })
+    .sort((a,b) => (a.date||"").localeCompare(b.date||""));
+
   const totalRev = txns.filter(t=>t.type==="rev").reduce((s,t)=>s+t.montant,0);
+  const total    = txns.filter(t=>t.type==="dep").reduce((s,t)=>s+t.montant,0);
+  const delta    = totalRev - total;
 
   if(txns.length === 0) {
     c.innerHTML = `<div class="card" style="padding:18px;text-align:center">
       <div style="font-size:2rem;margin-bottom:8px">💸</div>
       <div style="font-weight:700;font-size:.85rem;margin-bottom:4px">Flux Trésorerie</div>
       <div style="font-size:.72rem;color:var(--t3)">${MNF[MK.indexOf(mo)]} ${yr} — Aucune transaction Trésorerie ce mois</div>
-      <div style="font-size:.68rem;color:var(--t3);margin-top:8px">Les transactions saisies dans le module <strong>Trésorerie</strong> apparaîtront ici.</div>
+      <div style="font-size:.68rem;color:var(--t3);margin-top:8px">Allez dans le module <strong>💰 Trésorerie</strong> pour saisir vos transactions. Elles apparaîtront ici automatiquement.</div>
     </div>`;
     return;
   }
 
-  c.innerHTML = `<div class="card" style="overflow:hidden">
+  const nRev=txns.filter(t=>t.type==="rev").length, nDep=txns.filter(t=>t.type==="dep").length;
+  c.innerHTML = `
+    <!-- KPIs Flux -->
+    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:10px">
+      ${[
+        {ic:"📈",lb:"Revenus",v:fmtCFA(totalRev),col:"#1A6B3C",sub:nRev+" ligne"+(nRev>1?"s":"")},
+        {ic:"📉",lb:"Dépenses",v:fmtCFA(total),col:"#CC3333",sub:nDep+" ligne"+(nDep>1?"s":"")},
+        {ic:"⚖️",lb:"Delta",v:(delta>=0?"+":"")+fmtCFA(delta),col:delta>=0?"#1A6B3C":"#CC3333",sub:delta>=0?"Surplus":"Déficit"},
+        {ic:"📋",lb:"Nb. total",v:txns.length+" txn",col:"#2D4FC8",sub:MNF[MK.indexOf(mo)]+" "+yr}
+      ].map(k=>`<div style="background:var(--card);border:1px solid var(--brd);border-radius:10px;padding:10px 12px;box-shadow:var(--sh)">
+        <div style="font-size:1.1rem;margin-bottom:4px">${k.ic}</div>
+        <div style="font-size:.56rem;text-transform:uppercase;letter-spacing:1.3px;color:var(--t3);font-weight:700;margin-bottom:2px">${k.lb}</div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:.9rem;font-weight:700;color:${k.col}">${k.v}</div>
+        <div style="font-size:.6rem;color:var(--t3);margin-top:2px">${k.sub}</div>
+      </div>`).join("")}
+    </div>
+    <div class="card" style="overflow:hidden">
     <div class="card-hd">
       <div><div class="ct">💸 Flux Trésorerie</div><div class="cs">${txns.length} transaction${txns.length>1?"s":""} · ${MNF[MK.indexOf(mo)]} ${yr}</div></div>
     </div>
@@ -1614,10 +1649,14 @@ function renderFluxTresorerie(c) {
       </table>
     </div>
     <div class="tot-bar" style="display:flex;justify-content:space-between">
-      <span class="tot-lbl">Total dépenses TR</span>
-      <div style="display:flex;gap:16px;align-items:center">
-        ${totalRev>0?`<span style="font-size:.78rem;color:#a8f0d0;font-weight:700">+${fmtCFA(totalRev)} encaissés</span>`:""}
-        <span class="tot-v">${fmtCFA(total)}</span>
+      <div>
+        <div class="tot-lbl">Flux ${MNF[MK.indexOf(mo)]} ${yr}</div>
+        <div class="tot-s">${txns.length} transaction${txns.length>1?"s":""}</div>
+      </div>
+      <div style="display:flex;gap:14px;align-items:center">
+        ${totalRev>0?`<div style="text-align:right"><div style="font-size:.6rem;color:rgba(255,255,255,.6)">Revenus</div><div style="font-family:'JetBrains Mono',monospace;font-size:.85rem;font-weight:800;color:#a8f0d0">+${fmtCFA(totalRev)}</div></div>`:""}
+        <div style="text-align:right"><div style="font-size:.6rem;color:rgba(255,255,255,.6)">Dépenses</div><div class="tot-v">${fmtCFA(total)}</div></div>
+        <div style="text-align:right"><div style="font-size:.6rem;color:rgba(255,255,255,.6)">Delta</div><div style="font-family:'JetBrains Mono',monospace;font-size:.9rem;font-weight:900;color:${delta>=0?"#a8f0d0":"#ffaaaa"}">${delta>=0?"+":""}${fmtCFA(delta)}</div></div>
       </div>
     </div>
   </div>`;
@@ -1718,7 +1757,7 @@ function renderDepBloc(c, ctr) {
   const allEntries = getEntries(yr);
   const rows    = allEntries.map((e,i)=>({...e,_idx:i})).filter(e=>e.centre===ctr && !e._isTresorerie);
   const trRows  = allEntries.map((e,i)=>({...e,_idx:i})).filter(e=>e.centre===ctr && e._isTresorerie);
-  const cfg     = CTR_CFG[ctr];
+  const cfg     = {...CTR_CFG[ctr], name: getCtrName(ctr)};
   const thresh  = getThresh();
   const tP = rows.reduce((s,e)=>s+(getMD(e,mo).planned||0),0);
   const tA = rows.reduce((s,e)=>s+(getMD(e,mo).actual||0),0);
@@ -1760,7 +1799,8 @@ function renderDepBloc(c, ctr) {
             const p=md.planned||0, a=md.actual||0, ec=a-p;
             const pt=p>0?(a/p*100):0;
             const rcl=pt>thresh?"tbl-ov":pt>100?"tbl-wn":"";
-            const note = e.note||"";
+            // ✅ v5.1: note par mois (backward-compat avec ancien e.note global)
+            const note = (e.notes && e.notes[mo]) || (e.notes ? "" : (e.note||""));
             const hasNote = note.trim().length > 0;
             return `<tr class="${rcl}" id="drow-${idx}">
               <td style="text-align:right">
@@ -1870,7 +1910,7 @@ function renderSaisieRecap(c) {
   const trTotal = getEntries(yr).filter(e=>e._isTresorerie).reduce((s,e)=>s+(getMD(e,mo).actual||0),0);
   c.innerHTML = `<div style="display:flex;flex-direction:column;gap:9px">
     ${CTRS.map(ctr=>{
-      const cfg=CTR_CFG[ctr];
+      const cfg={...CTR_CFG[ctr], name: getCtrName(ctr)};
       const tA=getCentreMonthTotal(yr,mo,ctr);
       const tP=getCentrePlanMonthTotal(yr,mo,ctr);
       const trA=getCentreTrMonthTotal(yr,mo,ctr);
@@ -2102,7 +2142,7 @@ function renderHistChart() {
   charts["ch-hist"] = new Chart(el, {
     type:"bar", data:{labels:yrs, datasets:[
       ...CTRS.map((ctr,i)=>({
-        label:CTR_CFG[ctr].name, stack:"s",
+        label:getCtrName(ctr), stack:"s",
         data:yrs.map(y=>getEntries(y).filter(e=>e.centre===ctr).reduce((s,e)=>s+e.total_actual,0)/1e6),
         backgroundColor:colCtr[i]+"99",borderColor:colCtr[i],borderWidth:1,borderRadius:2
       })),
@@ -2140,7 +2180,7 @@ function renderParams() {
   pg.innerHTML = `
     <div style="font-weight:800;font-size:.93rem;margin-bottom:12px">Paramètres</div>
     <div class="tabs">
-      ${[["identity","👤 Identité"],["rubriques","📋 Rubriques"],["categories","🏷️ Catégories"],["alerts","🚨 Alertes"],["nonessential","⚖️ Non-essentielles"],["firebase","☁️ Firebase"],["conseil","💡 Conseil"]].map(([id,lbl])=>`
+      ${[["identity","👤 Identité"],["rubriques","📋 Rubriques"],["categories","🏷️ Catégories"],["centres","🏘️ Centres"],["alerts","🚨 Alertes"],["nonessential","⚖️ Non-essentielles"],["firebase","☁️ Firebase"],["conseil","💡 Conseil"]].map(([id,lbl])=>`
         <button class="tab${paramsTab===id?" on":""}" onclick="switchParamsTab('${id}')">${lbl}</button>
       `).join("")}
     </div>
@@ -2153,7 +2193,7 @@ function switchParamsTab(t) {
   paramsTab = t;
   document.querySelectorAll("#pg-params .tab").forEach(btn => {
     btn.classList.toggle("on", btn.textContent.includes(
-      {identity:"Identité",rubriques:"Rubriques",categories:"Catégories",alerts:"Alertes",firebase:"Firebase"}[t]
+      {identity:"Identité",rubriques:"Rubriques",categories:"Catégories",centres:"Centres",alerts:"Alertes",firebase:"Firebase"}[t]
     ));
   });
   renderParamsTab();
@@ -2162,7 +2202,7 @@ function switchParamsTab(t) {
 function renderParamsTab() {
   const c = document.getElementById("params-content");
   if(!c) return;
-  const fn = {identity:paramsIdentity, rubriques:paramsRubriques, categories:paramsCats, alerts:paramsAlerts, nonessential:paramsNonEssential, firebase:paramsFirebase, conseil:paramsConseil};
+  const fn = {identity:paramsIdentity, rubriques:paramsRubriques, categories:paramsCats, centres:paramsCentres, alerts:paramsAlerts, nonessential:paramsNonEssential, firebase:paramsFirebase, conseil:paramsConseil};
   if(fn[paramsTab]) fn[paramsTab](c);
 }
 
@@ -2229,7 +2269,7 @@ function paramsRubriques(c) {
         <tbody>
           ${entries.map((e)=>{
             const ri = e._realIdx; // index réel dans D[yr].entries
-            const ctrOpts = CTRS.map(c=>`<option value="${c}"${e.centre===c?" selected":""}>${CTR_CFG[c].name}</option>`).join("");
+            const ctrOpts = CTRS.map(c=>`<option value="${c}"${e.centre===c?" selected":""}>${getCtrName(c)}</option>`).join("");
             const catOpts = (prefs.cats||DEFAULT_CATS_LIST).map(cat=>`<option value="${cat.id}"${e.categorie===cat.id?" selected":""}>${cat.ic} ${cat.name}</option>`).join("");
             return `<tr>
               <td><input style="background:none;border:none;outline:none;font-weight:600;font-size:.78rem;width:100%;color:var(--t1);font-family:inherit"
@@ -2273,11 +2313,12 @@ function toggleNote(idx) {
 
 function saveNote(idx, val) {
   if(!D[yr]?.entries[idx]) return;
-  const old = D[yr].entries[idx].note || "";
-  D[yr].entries[idx].note = val;
+  // ✅ v5.1: notes par mois — chaque mois a son propre commentaire
+  if(!D[yr].entries[idx].notes) D[yr].entries[idx].notes = {};
+  const old = D[yr].entries[idx].notes[mo] || "";
+  D[yr].entries[idx].notes[mo] = val;
   // Mettre à jour le bouton en live
   const btn = document.getElementById("notebtn-"+idx);
-  const wrap = document.getElementById("note-wrap-"+idx);
   const hasNote = val.trim().length > 0;
   if(btn) {
     btn.className = "note-btn" + (hasNote?" has-note":"");
@@ -2320,18 +2361,106 @@ function paramsCats(c) {
 function addCat() { prefs.cats=[...(prefs.cats||DEFAULT_CATS_LIST),{id:"CAT"+Date.now(),ic:"📌",name:"Nouvelle",col:"#888"}]; renderParamsTab(); }
 function saveCats() { scheduleSync(); trLoadCategories(); toast("Catégories sauvegardées ✓"); }
 
+
+// ═══════════════ PARAMÈTRES — CENTRES DE COÛT ═══════════════
+function paramsCentres(c) {
+  const names = prefs.centreNames || {};
+  c.innerHTML = `
+    <div class="card" style="padding:18px">
+      <div style="font-weight:700;font-size:.84rem;margin-bottom:4px">🏘️ Noms des Centres de Coût</div>
+      <div style="font-size:.7rem;color:var(--t3);margin-bottom:14px;line-height:1.6">
+        Personnalisez les noms affichés dans l'application.<br>
+        Les données en base restent identifiées par leur clé interne (inchangée).
+      </div>
+      ${CTRS.map(ctr => `
+        <div style="margin-bottom:12px">
+          <label class="lbl-s">${CTR_CFG[ctr].ic} Nom affiché pour « <em>${CTR_CFG[ctr].name}</em> »</label>
+          <input type="text" id="ctr-name-${ctr.replace(/\s+/g,'_')}"
+            class="fld" placeholder="${CTR_CFG[ctr].name}"
+            value="${names[ctr] ? escHtml(names[ctr]) : ''}"
+            style="margin-top:4px">
+          <div style="font-size:.6rem;color:var(--t3);margin-top:2px">Clé interne: <code>${ctr}</code></div>
+        </div>`).join('')}
+      <button class="btn bp bfw" onclick="saveCentreNames()" style="margin-top:6px">💾 Sauvegarder les noms</button>
+    </div>
+  `;
+}
+
+function escHtml(s) {
+  return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+
+function saveCentreNames() {
+  if(!prefs.centreNames) prefs.centreNames = {};
+  CTRS.forEach(ctr => {
+    const el = document.getElementById("ctr-name-" + ctr.replace(/\s+/g,"_"));
+    if(!el) return;
+    const v = el.value.trim();
+    if(v && v !== CTR_CFG[ctr].name) prefs.centreNames[ctr] = v;
+    else delete prefs.centreNames[ctr]; // supprimer si identique au défaut
+  });
+  scheduleSync();
+  toast("✅ Noms des centres sauvegardés !");
+  // Re-rendre toutes les pages qui affichent les noms de centres
+  if(typeof renderPage === "function") renderPage(document.querySelector(".pg.on")?.id?.replace("pg-","") || "params");
+}
+
 function paramsAlerts(c) {
-  c.innerHTML = `<div class="card" style="padding:18px">
+  const idleDelay = prefs.idleDelay || 120;
+  c.innerHTML = `<div class="card" style="padding:18px;margin-bottom:12px">
     <div style="font-weight:700;font-size:.84rem;margin-bottom:12px">🚨 Seuils et Alertes</div>
     <label class="lbl-s">Seuil d'alerte (%)</label>
     <input type="number" id="p-thresh" class="fld" value="${prefs.alertThreshold||110}" min="100" max="200" style="margin-bottom:12px">
-    <div style="display:flex;align-items:center;gap:9px;margin-bottom:18px">
+    <div style="display:flex;align-items:center;gap:9px;margin-bottom:12px">
       <input type="checkbox" id="p-req" ${prefs.alertRequired!==false?"checked":""} style="width:18px;height:18px;accent-color:var(--green)">
       <label for="p-req" style="font-size:.8rem;font-weight:600">Commentaire obligatoire si dépassement</label>
     </div>
     <div class="alert-b al-w" style="margin-bottom:14px">ℹ️ Alerte rouge quand dépenses dépassent <strong>${prefs.alertThreshold||110}%</strong> du planifié.</div>
     <button class="btn bp bfw" onclick="saveAlerts()">💾 Sauvegarder</button>
+  </div>
+
+  <div class="card" style="padding:18px">
+    <div style="font-weight:700;font-size:.84rem;margin-bottom:4px">⏱️ Délai de déconnexion automatique</div>
+    <div style="font-size:.7rem;color:var(--t3);margin-bottom:12px">L'application se ferme après ce délai d'inactivité. Une re-saisie manuelle du mot de passe sera exigée.</div>
+
+    <label class="lbl-s">Délai d'inactivité</label>
+    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:7px;margin-bottom:14px">
+      ${[10,30,45,60,120].map(s=>`
+        <button onclick="selectIdleDelay(${s})" id="idle-btn-${s}"
+          style="padding:10px 4px;border-radius:9px;border:2px solid ${idleDelay===s?"var(--green)":"var(--brd)"};
+          background:${idleDelay===s?"var(--gl)":"var(--card)"};color:${idleDelay===s?"var(--green)":"var(--t2)"};
+          font-family:inherit;font-weight:700;font-size:.72rem;cursor:pointer;transition:all .15s;text-align:center">
+          <div style="font-size:1rem;margin-bottom:2px">${s<60?s+"s":(s/60)+"min"}</div>
+          <div style="font-size:.6rem;opacity:.7">${s===10?"Très court":s===30?"Court":s===45?"Moyen":s===60?"1 minute":"2 minutes"}</div>
+        </button>`).join("")}
+    </div>
+    <div class="alert-b al-r" style="margin-bottom:14px">🔒 À l'expiration, le mot de passe doit être saisi manuellement. Aucune reconnexion automatique.</div>
+    <div style="font-size:.72rem;color:var(--t2);margin-bottom:14px">Délai actuel : <strong>${idleDelay < 60 ? idleDelay+"s" : (idleDelay/60)+" min"}</strong></div>
+    <button class="btn bp bfw" onclick="saveIdleDelay()">💾 Appliquer le délai</button>
   </div>`;
+}
+
+function selectIdleDelay(s) {
+  [10,30,45,60,120].forEach(v => {
+    const btn = document.getElementById("idle-btn-"+v);
+    if(!btn) return;
+    const isSelected = v === s;
+    btn.style.borderColor  = isSelected ? "var(--green)" : "var(--brd)";
+    btn.style.background   = isSelected ? "var(--gl)"    : "var(--card)";
+    btn.style.color        = isSelected ? "var(--green)"  : "var(--t2)";
+    if(isSelected) btn.setAttribute("data-selected","1");
+    else           btn.removeAttribute("data-selected");
+  });
+}
+
+function saveIdleDelay() {
+  // Trouver le bouton sélectionné
+  const selected = [10,30,45,60,120].find(s => document.getElementById("idle-btn-"+s)?.hasAttribute("data-selected"))
+                || prefs.idleDelay || 120;
+  prefs.idleDelay = selected;
+  scheduleSync();
+  resetIdleTimer(); // Redémarrer avec le nouveau délai
+  toast("⏱️ Délai : " + (selected < 60 ? selected+"s" : (selected/60)+"min") + " — redémarré");
 }
 
 function saveAlerts() {
@@ -2560,19 +2689,34 @@ function exportXL() {
 // STARTUP + IDLE AUTO-LOGOUT
 // ═══════════════════════════════════════════════════════════════
 let _idleTimer = null;
-const IDLE_MS  = 2 * 60 * 1000; // 2 minutes
+// IDLE_MS est maintenant dynamique — lit prefs.idleDelay (en secondes, défaut 120s)
+function getIdleMs() { return ((prefs && prefs.idleDelay) || 120) * 1000; }
 
 function resetIdleTimer() {
   clearTimeout(_idleTimer);
+  const ms = getIdleMs();
   _idleTimer = setTimeout(() => {
     if(currentUser && typeof firebase !== "undefined") {
+      // Nettoyer les listeners avant signOut
+      if(typeof trListeners !== "undefined" && trListeners.length) {
+        trListeners.forEach(u => { try { u(); } catch(e){} });
+        trListeners.length = 0;
+      }
+      if(fbRef) { try { fbRef.off(); } catch(e){} }
       firebase.auth().signOut().then(() => {
-        toast("🔒 Déconnexion automatique (inactivité)");
         currentUser = null;
-        showLogin();
+        // Effacer le champ mot de passe pour forcer re-saisie manuelle
+        const pwdEl = document.getElementById("l-pwd");
+        if(pwdEl) pwdEl.value = "";
+        showLogin("🔒 Déconnexion automatique après " + ((ms/1000)|0) + "s d'inactivité. Veuillez saisir votre mot de passe.");
+      }).catch(err => {
+        currentUser = null;
+        const pwdEl = document.getElementById("l-pwd");
+        if(pwdEl) pwdEl.value = "";
+        showLogin("🔒 Session expirée. Reconnexion requise.");
       });
     }
-  }, IDLE_MS);
+  }, ms);
 }
 
 function initIdleWatcher() {
@@ -2810,18 +2954,33 @@ async function trFlushOfflineQueue() {
 // ──────────────────────────────────────────────────────────
 function trSubscribeTransactions() {
   if(!currentUser) return;
-  const path = `${TR_PATH.TRANSACTIONS}/${currentUser.uid}/${trCurYM()}`;
-  const ref = firebase.database().ref(path);
-  
-  // On retire l'ancien listener s'il existe
-  if(trListeners.length) { trListeners.forEach(u => { try { u(); } catch(e){} }); trListeners = []; }
-  
+  // ✅ FIX v5: écouter le nœud PARENT pour charger TOUS les mois d'un coup
+  // Chemin: TR_Transactions/{uid}/ → toutes les années/mois automatiquement
+  const path = `${TR_PATH.TRANSACTIONS}/${currentUser.uid}`;
+  const ref  = firebase.database().ref(path);
+
+  // Retirer les anciens listeners
+  trListeners.forEach(u => { try { u(); } catch(e){} });
+  trListeners = [];
+
   const unsub = ref.on("value", snap => {
-    const data = snap.val() || {};
-    trTransactions = Object.entries(data).map(([id, val]) => ({ id, ...val }));
+    const allMonths = snap.val() || {};
+    trTransactions  = [];
+    // Aplatir : {yearMonth: {txnId: {...}}} → [{id, ...txn}]
+    Object.entries(allMonths).forEach(([ym, txns]) => {
+      if(txns && typeof txns === "object") {
+        Object.entries(txns).forEach(([id, txn]) => {
+          if(txn && typeof txn === "object") {
+            trTransactions.push({ id, ...txn });
+          }
+        });
+      }
+    });
     trTransactions.sort((a,b) => (b.timestamp||0) - (a.timestamp||0));
-    if(trSubPage === "dashboard") { trRenderKPIs(); trRenderChart1(); }
+    if(trSubPage === "dashboard")    { trRenderKPIs(); trRenderChart1(); }
     if(trSubPage === "transactions") trRenderList();
+  }, err => {
+    console.error("[Trésorerie] trSubscribeTransactions:", err.message);
   });
   trListeners.push(() => ref.off("value", unsub));
 }
@@ -3090,17 +3249,11 @@ function trRenderDashboard(c) {
 }
 
 function trChangeMonth(d) {
-  // Nettoyer les listeners du mois précédent
-  trListeners.forEach(u => { try { u(); } catch(e){} });
-  trListeners = [];
-  trTransactions = [];
-
+  // ✅ FIX v5: listener déjà sur le nœud parent (tous mois) — pas de réabonnement
   if(trMonth + d < 1)       { trYear--; trMonth = 12; }
   else if(trMonth + d > 12) { trYear++; trMonth = 1; }
   else                       { trMonth += d; }
-
-  trSubscribeTransactions();
-  trSubscribeDeltas();
+  // Simple re-render avec filtre côté client
   trRenderPage();
 }
 
@@ -3110,10 +3263,13 @@ function trChangeMonth(d) {
 function trRenderKPIs() {
   const c = document.getElementById("tr-kpi-strip");
   if(!c) return;
-  const rev  = trTransactions.filter(t=>t.type==="rev").reduce((s,t)=>s+t.montant,0);
-  const dep  = trTransactions.filter(t=>t.type==="dep").reduce((s,t)=>s+t.montant,0);
+  // ✅ FIX v5: filtrer sur le mois/année affiché
+  const curYM = trCurYM();
+  const mTxns = trTransactions.filter(t => (t.yearMonth || t.date?.slice(0,7)) === curYM);
+  const rev  = mTxns.filter(t=>t.type==="rev").reduce((s,t)=>s+t.montant,0);
+  const dep  = mTxns.filter(t=>t.type==="dep").reduce((s,t)=>s+t.montant,0);
   const dlt  = rev - dep;
-  const cnt  = trTransactions.length;
+  const cnt  = mTxns.length;
   const sub  = `${TR_MOISL[trMonth]} ${trYear}`;
 
   c.innerHTML = [
@@ -3139,7 +3295,11 @@ function trRenderChart1() {
   const maxDay = (trYear===today.getFullYear()&&trMonth===today.getMonth()+1) ? today.getDate() : daysInMonth;
   const revByDay = new Array(daysInMonth).fill(0);
   const depByDay = new Array(daysInMonth).fill(0);
-  trTransactions.forEach(t => {
+  const curYM_c1 = trCurYM();
+  trTransactions.filter(t => {
+    const txYM = t.yearMonth || (t.date||"").slice(0,7);
+    return txYM === curYM_c1;
+  }).forEach(t => {
     const d = new Date(t.date + "T00:00:00");
     if(d.getFullYear()===trYear && d.getMonth()+1===trMonth) {
       const day = d.getDate() - 1;
@@ -3208,7 +3368,7 @@ function trRenderTransactions(c) {
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
       <div>
         <div style="font-weight:800;font-size:${isDesktop?".95rem":".88rem"}">Transactions — ${TR_MOISL[trMonth]} ${trYear}</div>
-        <div style="font-size:.65rem;color:var(--t3);margin-top:1px">${trTransactions.length} opération${trTransactions.length>1?"s":""} enregistrée${trTransactions.length>1?"s":""}</div>
+        <div style="font-size:.65rem;color:var(--t3);margin-top:1px">${trTransactions.length} transaction${trTransactions.length>1?"s":""} au total · ${trTransactions.filter(t=>(t.yearMonth||(t.date||"").slice(0,7))===trCurYM()).length} ce mois</div>
       </div>
       ${!isDesktop?`<button class="btn bp" style="padding:6px 12px;font-size:.72rem" onclick="trOpenForm('dep')">+ Nouveau</button>`:""}
     </div>
@@ -3230,41 +3390,77 @@ function trSetFilter(f, el) {
 function trRenderList() {
   const c = document.getElementById("tr-list-content");
   if(!c) return;
+
+  // ✅ FIX v5: filtres complets + numérotation des lignes
+  const curYM = trCurYM();
   let filtered = [...trTransactions];
-  if(trFilter==="rev")    filtered = filtered.filter(t=>t.type==="rev");
-  else if(trFilter==="dep") filtered = filtered.filter(t=>t.type==="dep");
-  else if(["wave","orange","banque","espece"].includes(trFilter)) filtered = filtered.filter(t=>t.mode===trFilter);
+
+  // Filtre "mois courant" par défaut sur vue par mois (sauf si filtre actif = "all")
+  // On garde toutes les transactions et on les groupe par mois dans la vue
+  if(trFilter === "rev")    filtered = filtered.filter(t => t.type === "rev");
+  else if(trFilter === "dep")    filtered = filtered.filter(t => t.type === "dep");
+  else if(trFilter === "wave")   filtered = filtered.filter(t => t.mode === "wave");
+  else if(trFilter === "orange") filtered = filtered.filter(t => t.mode === "orange");
+  else if(trFilter === "banque") filtered = filtered.filter(t => t.mode === "banque");
+  else if(trFilter === "espece") filtered = filtered.filter(t => t.mode === "espece");
+  // trFilter === "all" : garder tout
 
   if(filtered.length === 0) {
-    c.innerHTML = `<div class="tr-empty"><span class="tr-empty-ic">🔍</span><div class="tr-empty-t">Aucune transaction</div></div>`;
+    c.innerHTML = `<div class="tr-empty"><span class="tr-empty-ic">🔍</span><div class="tr-empty-t">Aucune transaction</div><div style="font-size:.72rem;color:var(--t3);margin-top:5px">Essayez "Tout" ou changez de filtre</div></div>`;
     return;
   }
-  // Grouper par date
+
+  // Grouper par date (tri décroissant)
   const grp = {};
-  filtered.forEach(t => { if(!grp[t.date]) grp[t.date]=[]; grp[t.date].push(t); });
-  const dates = Object.keys(grp).sort((a,b)=>b.localeCompare(a));
-  const isCurMonth = (trYear===trNow.getFullYear()&&trMonth===trNow.getMonth()+1);
+  filtered.forEach(t => {
+    const key = t.date || "0000-00-00";
+    if(!grp[key]) grp[key] = [];
+    grp[key].push(t);
+  });
+  const dates = Object.keys(grp).sort((a,b) => b.localeCompare(a));
+  const nowYear = trNow.getFullYear(), nowMonth = trNow.getMonth()+1;
 
   let html = "";
+  let lineNum = filtered.length; // Numérotation décroissante (dernière txn = n°1)
+
   dates.forEach(date => {
-    const dR = grp[date].filter(t=>t.type==="rev").reduce((s,t)=>s+t.montant,0);
-    const dD = grp[date].filter(t=>t.type==="dep").reduce((s,t)=>s+t.montant,0);
+    const dGroup = grp[date];
+    const dR = dGroup.filter(t=>t.type==="rev").reduce((s,t)=>s+t.montant,0);
+    const dD = dGroup.filter(t=>t.type==="dep").reduce((s,t)=>s+t.montant,0);
     const d  = new Date(date+"T00:00:00");
-    html += `<div class="tr-day-hd"><span>${d.toLocaleDateString("fr-FR",{weekday:"long",day:"numeric",month:"long"})}</span>
-      <span style="font-size:.64rem">${dR>0?`<span style="color:var(--green)">+${fmtCFA(dR)}</span> `:""}${dD>0?`<span style="color:var(--red)">-${fmtCFA(dD)}</span>`:""}</span></div>`;
-    grp[date].forEach(t => {
+    const dStr = isNaN(d) ? date : d.toLocaleDateString("fr-FR",{weekday:"long",day:"numeric",month:"long",year:"numeric"});
+    html += `<div class="tr-day-hd">
+      <span>${dStr}</span>
+      <span style="font-size:.63rem">
+        ${dR>0?`<span style="color:var(--green);font-weight:700">+${fmtCFA(dR)}</span> `:""}
+        ${dD>0?`<span style="color:var(--red);font-weight:700">-${fmtCFA(dD)}</span>`:""}
+      </span>
+    </div>`;
+
+    // Trier les transactions du jour
+    dGroup.sort((a,b)=>(b.timestamp||0)-(a.timestamp||0));
+    dGroup.forEach(t => {
       if(!t) return;
       const catObj = trCategories.find(c=>c.id===t.categorie)||{};
+      // Vérifier si le mois est éditable (mois courant de navigation)
+      const txnYM = t.yearMonth || (t.date||"").slice(0,7);
+      const txnDate = new Date((t.date||"0000-00-00")+"T00:00:00");
+      const txnYear  = txnDate.getFullYear();
+      const txnMonth = txnDate.getMonth()+1;
+      const isEditable = (txnYear===nowYear && txnMonth===nowMonth);
+
       html += `<div class="tr-txn-item tr-txn-${t.type}">
+        <div style="min-width:26px;text-align:center;font-size:.6rem;font-weight:800;color:var(--t3);font-family:'JetBrains Mono',monospace;padding-right:4px">${lineNum--}</div>
         <div class="tr-txn-ic tr-txn-ic-${t.type}">${catObj.ic||(t.type==="rev"?"💚":"🔴")}</div>
         <div class="tr-txn-body">
-          <div class="tr-txn-name">${trEsc(t.designation)}</div>
+          <div class="tr-txn-name">${trEsc(t.designation||"—")}</div>
           <div class="tr-txn-meta">
             ${catObj.nom?`<span class="tr-txn-cat">${catObj.nom}</span>`:""}
-            <span class="tr-txn-mode">${TR_MODE_IC[t.mode]||"💳"} ${TR_MODE_NAMES[t.mode]||t.mode}</span>
+            <span class="tr-txn-mode">${TR_MODE_IC[t.mode]||"💳"} ${TR_MODE_NAMES[t.mode]||t.mode||""}</span>
             ${t.offline?`<span class="tr-offline-tag">⏳</span>`:""}
+            ${txnYM&&txnYM!==curYM?`<span style="font-size:.58rem;color:var(--t3)">${txnYM}</span>`:""}
           </div>
-          ${isCurMonth?`<div class="tr-txn-actions"><button class="tr-txn-btn tr-txn-edit" onclick="trEditTxn('${t.id}')">✏️</button><button class="tr-txn-btn tr-txn-del" onclick="trDeleteTxn('${t.id}','${t.yearMonth}')">🗑️</button></div>`:""}
+          ${isEditable?`<div class="tr-txn-actions"><button class="tr-txn-btn tr-txn-edit" onclick="trEditTxn('${t.id}')">✏️</button><button class="tr-txn-btn tr-txn-del" onclick="trDeleteTxn('${t.id}','${txnYM||curYM}')">🗑️</button></div>`:""}
         </div>
         <div class="tr-txn-amount ${t.type}">${t.type==="rev"?"+":"-"}${fmtCFA(t.montant)}</div>
       </div>`;
