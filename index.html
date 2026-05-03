@@ -8,7 +8,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="FSEYE">
 <meta name="theme-color" content="#1B3A2D">
-<title>FSEYE · Budget Familial v5.3</title>
+<title>FSEYE · Budget Familial v5.4</title>
 <link id="pwa-manifest-link" rel="manifest">
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
@@ -673,26 +673,16 @@ input,button,select{font-family:inherit;-webkit-tap-highlight-color:transparent}
  * RÈGLES DE SÉCURITÉ FIREBASE REALTIME DATABASE (à appliquer dans
  * la console Firebase → Realtime Database → Rules)
  * ════════════════════════════════════════════════════════════════
- * {
- *   "rules": {
- *     "fseye": {
- *       "$uid": {
- *         ".read":  "auth != null && auth.uid === $uid",
- *         ".write": "auth != null && auth.uid === $uid"
- *       }
- *     },
- *     "TR_Transactions": {
- *       "$uid": {
- *         ".read":  "auth != null && auth.uid === $uid",
- *         ".write": "auth != null && auth.uid === $uid"
- *       }
- *     },
- *     "TR_Archives":  { "$uid": { ".read":"auth.uid===$uid",".write":"auth.uid===$uid" }},
- *     "TR_Agregats":  { "$uid": { ".read":"auth.uid===$uid",".write":"auth.uid===$uid" }},
- *     "TR_Deltas":    { "$uid": { ".read":"auth.uid===$uid",".write":"auth.uid===$uid" }},
- *     "$other":       { ".read": false, ".write": false }
- *   }
- * }
+ *{
+  "rules": {
+    "fseye": {
+      "$uid": {
+        ".read": "auth.uid === $uid",
+        ".write": "auth.uid === $uid"
+      }
+    }
+  }
+}
  */
 const FIREBASE_CONFIG = {
   apiKey:            "AIzaSyDuvgAdgGumtDS3h9IYE3KURxuLSg6geyM",
@@ -835,6 +825,12 @@ function initFirebase() {
           return;
         }
         currentUser = user;
+        // ── FIX v5.4: Reset état global pour isoler les profils ──
+        D        = JSON.parse(JSON.stringify(INIT_DATA));
+        revs     = {};
+        comments = {};
+        prefs    = {alertThreshold:110, alertRequired:true, cats:null, idleDelay:120, centreNames:{}};
+        // ─────────────────────────────────────────────────────────
         showApp(true);
       } else {
         currentUser = null;
@@ -2672,10 +2668,10 @@ function doVirginiser() {
     // Effacer le nœud principal (données budgétaires)
     fbDB.ref("fseye/" + uid).remove();
     // Effacer les transactions Trésorerie
-    fbDB.ref("TR_Transactions/" + uid).remove();
-    fbDB.ref("TR_Archives/" + uid).remove();
-    fbDB.ref("TR_Agregats/" + uid).remove();
-    fbDB.ref("TR_Deltas/" + uid).remove();
+    fbDB.ref("fseye/" + uid + "/TR_Transactions").remove();
+    fbDB.ref("fseye/" + uid + "/TR_Archives").remove();
+    fbDB.ref("fseye/" + uid + "/TR_Agregats").remove();
+    fbDB.ref("fseye/" + uid + "/TR_Deltas").remove();
   }
 
   // Repousser les données vierges sur Firebase
@@ -3003,12 +2999,12 @@ function pwaUploadIcon(input) {
 // ⚙️  CHEMINS REALTIME DATABASE (remplace les collections Firestore)
 // ──────────────────────────────────────────────────────────
 const TR_PATH = {
-  TRANSACTIONS: "TR_Transactions",    // /TR_Transactions/{uid}/{yearMonth}/{txnId}
-  ARCHIVES:     "TR_Archives",        // /TR_Archives/{uid}/{yearMonth}/{txnId}
-  DELTAS:       "TR_Deltas",          // /TR_Deltas/{uid}/mois/{yearMonth}
-  CATEGORIES:   "TR_Categories",      // /TR_Categories/{uid}/liste/{catId}
-  AGREGATS:     "TR_Agregats",        // /TR_Agregats/{uid}
-  PREFS:        "TR_Preferences"      // /TR_Preferences/{uid}
+  TRANSACTIONS: "TR_Transactions",    // fseye/{uid}/TR_Transactions/{yearMonth}/{txnId}
+  ARCHIVES:     "TR_Archives",        // fseye/{uid}/TR_Archives/{yearMonth}/{txnId}
+  DELTAS:       "TR_Deltas",          // fseye/{uid}/TR_Deltas/mois/{yearMonth}
+  CATEGORIES:   "TR_Categories",      // (non utilisé — via prefs dans fseye/{uid})
+  AGREGATS:     "TR_Agregats",        // fseye/{uid}/TR_Agregats
+  PREFS:        "TR_Preferences"      // (non utilisé — via prefs dans fseye/{uid})
 };
 
 // ──────────────────────────────────────────────────────────
@@ -3100,7 +3096,7 @@ async function trFlushOfflineQueue() {
 
   for(const op of toProcess) {
     try {
-      const refPath = `${TR_PATH.TRANSACTIONS}/${currentUser.uid}/${op.ym}/${op.id}`;
+      const refPath = `fseye/${currentUser.uid}/${TR_PATH.TRANSACTIONS}/${op.ym}/${op.id}`;
       if(op.type === "delete") {
         await firebase.database().ref(refPath).remove();
       } else {
@@ -3125,7 +3121,7 @@ function trSubscribeTransactions() {
   if(!currentUser) return;
   // ✅ FIX v5: écouter le nœud PARENT pour charger TOUS les mois d'un coup
   // Chemin: TR_Transactions/{uid}/ → toutes les années/mois automatiquement
-  const path = `${TR_PATH.TRANSACTIONS}/${currentUser.uid}`;
+  const path = `fseye/${currentUser.uid}/${TR_PATH.TRANSACTIONS}`;
   const ref  = firebase.database().ref(path);
 
   // Retirer les anciens listeners
@@ -3156,7 +3152,7 @@ function trSubscribeTransactions() {
 
 function trSubscribeDeltas() {
   if(!currentUser) return;
-  const path = `${TR_PATH.DELTAS}/${currentUser.uid}/mois`;
+  const path = `fseye/${currentUser.uid}/${TR_PATH.DELTAS}/mois`;
   const ref = firebase.database().ref(path);
   
   const unsub = ref.on("value", snap => {
@@ -3759,7 +3755,7 @@ async function trSubmitTransaction() {
     offline:false
   };
 
-  const refPath = `${TR_PATH.TRANSACTIONS}/${currentUser.uid}/${ym}/${txnId}`;
+  const refPath = `fseye/${currentUser.uid}/${TR_PATH.TRANSACTIONS}/${ym}/${txnId}`;
 
   if(!trFbOk) {
     data.offline = true;
@@ -3803,7 +3799,7 @@ function trEditTxn(id) { const t=trTransactions.find(x=>x.id===id); if(t) trOpen
 
 async function trDeleteTxn(id, ym) {
   if(!confirm("Supprimer cette transaction ?")) return;
-  const refPath = `${TR_PATH.TRANSACTIONS}/${currentUser.uid}/${ym}/${id}`;
+  const refPath = `fseye/${currentUser.uid}/${TR_PATH.TRANSACTIONS}/${ym}/${id}`;
   if(!trFbOk) {
     trOfflineQueue.push({type:"delete",data:{yearMonth:ym},id,ym});
     trSaveOfflineQueue();
@@ -3937,9 +3933,9 @@ async function trExecuteCloture() {
   toast("⏳ Clôture en cours…");
 
   try {
-    const srcPath  = `${TR_PATH.TRANSACTIONS}/${currentUser.uid}/${pym}`;
-    const archPath = `${TR_PATH.ARCHIVES}/${currentUser.uid}/${pym}`;
-    const deltaPath= `${TR_PATH.DELTAS}/${currentUser.uid}/mois/${pym}`;
+    const srcPath  = `fseye/${currentUser.uid}/${TR_PATH.TRANSACTIONS}/${pym}`;
+    const archPath = `fseye/${currentUser.uid}/${TR_PATH.ARCHIVES}/${pym}`;
+    const deltaPath= `fseye/${currentUser.uid}/${TR_PATH.DELTAS}/mois/${pym}`;
     
     // Lire les transactions du mois
     const snap = await firebase.database().ref(srcPath).once("value");
@@ -3986,14 +3982,14 @@ async function trExecuteCloture() {
 async function trSyncDashboard(yearMonth, extraData = null) {
   if(!currentUser) return;
   try {
-    const path = `${TR_PATH.TRANSACTIONS}/${currentUser.uid}/${yearMonth}`;
+    const path = `fseye/${currentUser.uid}/${TR_PATH.TRANSACTIONS}/${yearMonth}`;
     const snap = await firebase.database().ref(path).once("value");
     const data = snap.val() || {};
     let tRev=0, tDep=0;
     Object.values(data).forEach(t => { if(t.type==="rev") tRev+=t.montant; else if(t.type==="dep") tDep+=t.montant; });
     const delta = tRev - tDep;
 
-    const agregRef = firebase.database().ref(`${TR_PATH.AGREGATS}/${currentUser.uid}`);
+    const agregRef = firebase.database().ref(`fseye/${currentUser.uid}/${TR_PATH.AGREGATS}`);
     const updates = {};
     updates[`tresorerie/${yearMonth}/totalRevenus`]   = tRev;
     updates[`tresorerie/${yearMonth}/totalDepenses`]  = tDep;
