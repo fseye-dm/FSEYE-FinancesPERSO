@@ -8,7 +8,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="FSEYE">
 <meta name="theme-color" content="#1B3A2D">
-<title>FSEYE · Budget Familial v5.6</title>
+<title>FSEYE · Budget Familial v5.7</title>
 <link id="pwa-manifest-link" rel="manifest">
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
@@ -903,7 +903,11 @@ async function doLogin() {
       "auth/wrong-password":"Mot de passe incorrect",
       "auth/invalid-email":"Email invalide",
       "auth/too-many-requests":"Trop de tentatives — réessayez plus tard",
-      "auth/network-request-failed":"Erreur réseau"
+      "auth/network-request-failed":"Erreur réseau — vérifiez votre connexion",
+      "auth/invalid-credential":"Email ou mot de passe incorrect",
+      "auth/invalid-login-credentials":"Email ou mot de passe incorrect",
+      "auth/user-disabled":"Ce compte a été désactivé",
+      "auth/operation-not-allowed":"Connexion par email non activée"
     };
     showErr(err, msgs[e.code] || e.message);
   }
@@ -1114,6 +1118,25 @@ function updateSyncBadge(state) {
 }
 
 // ═══════════════════════════════════════════════════════════════
+// SCALABILITÉ TEMPORELLE — Auto-populer années jusqu'à today+2
+// ═══════════════════════════════════════════════════════════════
+function _ensureYearRange() {
+  const nowY = new Date().getFullYear();
+  const maxY = nowY + 2;
+  const firstY = 2024;
+  for(let y = firstY; y <= maxY; y++) {
+    const yk = String(y);
+    if(!D[yk]) {
+      D[yk] = {
+        total_planned:0, total_actual:0, ecart:0,
+        by_centre:{}, by_categorie:{}, monthly_totals:{}, entries:[]
+      };
+      MK.forEach(m => { D[yk].monthly_totals[m] = {planned:0, actual:0}; });
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
 // APP INIT
 // ═══════════════════════════════════════════════════════════════
 function showLogin(msg, isLocal=false) {
@@ -1138,6 +1161,13 @@ function showApp(withFirebase) {
 }
 
 function initApp(withFirebase) {
+  // ── Auto-créer les années manquantes jusqu'à today+2 (scalabilité temporelle) ──
+  _ensureYearRange();
+  // ── Corriger yr si l'année courante n'est plus dans D ──────────
+  const _nowYr = String(new Date().getFullYear());
+  if(!D[yr] && D[_nowYr]) yr = _nowYr;
+  // ─────────────────────────────────────────────────────────────
+
   buildPills();
 
   // ── Restaurer état session F5/Ctrl+F5 ──────────────────────
@@ -3246,6 +3276,47 @@ function exportXL() {
 }
 
 // ═══════════════════════════════════════════════════════════════
+// DÉBOGAGE RÉSEAU — Résilience Kaspersky / IO_SUSPENDED
+// ═══════════════════════════════════════════════════════════════
+// Intercepter les rejets non gérés causés par les antivirus (Kaspersky, Norton…)
+// qui interceptent les WebSockets Firebase et génèrent ERR_NETWORK_IO_SUSPENDED.
+window.addEventListener("unhandledrejection", function(evt) {
+  const msg = evt.reason && (evt.reason.message || String(evt.reason));
+  if(!msg) return;
+  const isNetworkNoise = msg.includes("IO_SUSPENDED") ||
+                         msg.includes("ERR_NETWORK") ||
+                         msg.includes("CORS") ||
+                         msg.includes("Failed to fetch") ||
+                         msg.includes("net::ERR");
+  if(isNetworkNoise) {
+    evt.preventDefault(); // empêche le log rouge dans F12
+    // Trigger reconnect silencieux si Firebase est prêt
+    if(typeof trFbOk !== "undefined" && !trFbOk && currentUser) {
+      if(typeof _trScheduleRetry === "function") _trScheduleRetry();
+    }
+  }
+});
+
+// Reconnexion silencieuse WebSocket Firebase au retour du réseau
+window.addEventListener("online", function() {
+  // Firebase SDK gère déjà la reconnexion interne,
+  // mais on déclenche un re-subscribe si les listeners sont vides
+  setTimeout(function() {
+    if(typeof currentUser !== "undefined" && currentUser) {
+      if(typeof trListeners !== "undefined" && trListeners.length <= 1) {
+        if(typeof trSubscribeTransactions === "function") trSubscribeTransactions();
+        if(typeof trSubscribeDeltas === "function") trSubscribeDeltas();
+      }
+    }
+  }, 1500); // délai pour laisser Firebase se reconnecter d'abord
+});
+
+// Pas de log parasite "offline" — Firebase gère le badge sync
+window.addEventListener("offline", function() {
+  if(typeof updateSyncBadge === "function") updateSyncBadge("offline");
+});
+
+// ═══════════════════════════════════════════════════════════════
 // STARTUP + IDLE AUTO-LOGOUT
 // ═══════════════════════════════════════════════════════════════
 let _idleTimer = null;
@@ -3446,7 +3517,18 @@ function trInit() {
   try {
     // Connectivité Trésorerie — via fbDB (partagé), stocké dans trListeners
     const _trConnRef = fbDB.ref(".info/connected");
-    const _trConnFn  = snap => { trFbOk = snap.val()===true; if(trFbOk) trFlushOfflineQueue(); };
+    const _trConnFn  = snap => {
+      const wasOk = trFbOk;
+      trFbOk = snap.val() === true;
+      if(trFbOk) {
+        trFlushOfflineQueue();
+        // Si on revient en ligne et que le listener a échoué, se réabonner
+        if(!wasOk && trListeners.length <= 1) {
+          trSubscribeTransactions();
+          trSubscribeDeltas();
+        }
+      }
+    };
     _trConnRef.on("value", _trConnFn);
     trListeners.push(() => _trConnRef.off("value", _trConnFn)); // nettoyé avec trListeners
 
@@ -3512,18 +3594,27 @@ async function trFlushOfflineQueue() {
 // ──────────────────────────────────────────────────────────
 // LISTENERS TEMPS RÉEL (Realtime Database)
 // ──────────────────────────────────────────────────────────
+let _trSubRetryTimer = null;   // timer de retry en cas d'erreur réseau
+let _trSubRetryCount = 0;      // compteur backoff
+
 function trSubscribeTransactions() {
   if(!currentUser) return;
-  // ✅ FIX v5: écouter le nœud PARENT pour charger TOUS les mois d'un coup
-  // Chemin: TR_Transactions/{uid}/ → toutes les années/mois automatiquement
-  const path = `fseye/${currentUser.uid}/${TR_PATH.TRANSACTIONS}`;
-  const ref  = firebase.database().ref(path);
+  if(typeof firebase === "undefined" || !fbDB) return;
 
-  // Retirer les anciens listeners
+  // Nettoyer les anciens listeners
   trListeners.forEach(u => { try { u(); } catch(e){} });
   trListeners = [];
 
+  // ✅ FIX v5: écouter le nœud PARENT pour charger TOUS les mois d'un coup
+  const path = `fseye/${currentUser.uid}/${TR_PATH.TRANSACTIONS}`;
+  let ref;
+  try { ref = firebase.database().ref(path); } catch(e) {
+    console.warn("[Trésorerie] Impossible de créer la référence DB:", e.message);
+    return;
+  }
+
   const unsub = ref.on("value", snap => {
+    _trSubRetryCount = 0; // reset backoff après succès
     const allMonths = snap.val() || {};
     trTransactions  = [];
     // Aplatir : {yearMonth: {txnId: {...}}} → [{id, ...txn}]
@@ -3540,16 +3631,40 @@ function trSubscribeTransactions() {
     if(trSubPage === "dashboard")    { trRenderKPIs(); trRenderChart1(); }
     if(trSubPage === "transactions") trRenderList();
   }, err => {
-    console.error("[Trésorerie] trSubscribeTransactions:", err.message);
+    // ERR_NETWORK_IO_SUSPENDED / CORS / permission-denied : retry silencieux
+    const isNetErr = err.code === "NETWORK_ERROR" ||
+                     err.message.includes("NETWORK") ||
+                     err.message.includes("SUSPENDED") ||
+                     err.message.includes("CORS");
+    if(isNetErr || err.code === "NETWORK_ERROR") {
+      // Ne pas polluer la console avec les erreurs Kaspersky
+      _trScheduleRetry();
+    } else {
+      console.error("[Trésorerie] trSubscribeTransactions:", err.message);
+      if(err.code !== "PERMISSION_DENIED") _trScheduleRetry();
+    }
   });
-  trListeners.push(() => ref.off("value", unsub));
+  trListeners.push(() => { try { ref.off("value", unsub); } catch(e){} });
+}
+
+function _trScheduleRetry() {
+  if(_trSubRetryTimer) return; // déjà planifié
+  _trSubRetryCount = Math.min(_trSubRetryCount + 1, 5);
+  const delay = Math.min(2000 * Math.pow(2, _trSubRetryCount - 1), 30000);
+  _trSubRetryTimer = setTimeout(() => {
+    _trSubRetryTimer = null;
+    if(currentUser && trFbOk) trSubscribeTransactions();
+    else if(currentUser) _trScheduleRetry();
+  }, delay);
 }
 
 function trSubscribeDeltas() {
   if(!currentUser) return;
+  if(typeof firebase === "undefined" || !fbDB) return;
   const path = `fseye/${currentUser.uid}/${TR_PATH.DELTAS}/mois`;
-  const ref = firebase.database().ref(path);
-  
+  let ref;
+  try { ref = firebase.database().ref(path); } catch(e) { return; }
+
   const unsub = ref.on("value", snap => {
     const data = snap.val() || {};
     trDeltaHistory = Object.entries(data).map(([id, val]) => ({ id, ...val }));
@@ -3557,8 +3672,13 @@ function trSubscribeDeltas() {
     trDeltaHistory.sort((a,b) => b.yearMonth.localeCompare(a.yearMonth));
     if(trSubPage === "dashboard") trRenderChart2();
     if(trSubPage === "historique") trRenderDeltas();
+  }, err => {
+    // Erreur réseau silencieuse
+    if(!err.message.includes("PERMISSION_DENIED")) {
+      setTimeout(() => { if(currentUser && trFbOk) trSubscribeDeltas(); }, 5000);
+    }
   });
-  trListeners.push(() => ref.off("value", unsub));
+  trListeners.push(() => { try { ref.off("value", unsub); } catch(e){} });
 }
 
 function trLoadCategories() {
