@@ -698,18 +698,16 @@ input,button,select{font-family:inherit;-webkit-tap-highlight-color:transparent}
  *         ".write": "auth != null && auth.uid === $uid"
  *       }
  *     },
- *     "TR_Transactions": {
- *       "$uid": {
- *         ".read":  "auth != null && auth.uid === $uid",
- *         ".write": "auth != null && auth.uid === $uid"
- *       }
- *     },
- *     "TR_Archives":  { "$uid": { ".read":"auth.uid===$uid",".write":"auth.uid===$uid" }},
- *     "TR_Agregats":  { "$uid": { ".read":"auth.uid===$uid",".write":"auth.uid===$uid" }},
- *     "TR_Deltas":    { "$uid": { ".read":"auth.uid===$uid",".write":"auth.uid===$uid" }},
- *     "$other":       { ".read": false, ".write": false }
+ *     "$other": { ".read": false, ".write": false }
  *   }
  * }
+ *
+ * NOTE v5.7 : Structure correcte des chemins RTDB (UID non dupliqué) :
+ *   Transactions : fseye/{uid}/TR_Transactions/{yearMonth}/{txnId}
+ *   Archives     : fseye/{uid}/TR_Archives/{yearMonth}/{txnId}
+ *   Agrégats     : fseye/{uid}/TR_Agregats/tresorerie/{yearMonth}
+ *   Deltas       : fseye/{uid}/TR_Deltas/mois/{yearMonth}
+ * Tous les nœuds TR_* sont SOUS fseye/{uid} — pas en top-level.
  */
 const FIREBASE_CONFIG = {
   apiKey:            "AIzaSyDuvgAdgGumtDS3h9IYE3KURxuLSg6geyM",
