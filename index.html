@@ -215,6 +215,23 @@ input,button,select{font-family:inherit;-webkit-tap-highlight-color:transparent}
 .rbar-w{height:8px;background:var(--brd);border-radius:99px;overflow:hidden;margin:5px 0}
 .rbar-f{height:100%;border-radius:99px;transition:width .5s}
 
+/* ═══════════════ KPI BUDGET vs REVENUS (navy/gold) ═══════════════ */
+.kbr-wrap{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+.kbr-card{background:#0A1F4E;border-radius:13px;padding:14px 15px;position:relative;overflow:hidden;box-shadow:0 4px 18px rgba(10,31,78,.35)}
+.kbr-card::after{content:"";position:absolute;top:-18px;right:-18px;width:72px;height:72px;background:rgba(255,192,0,.07);border-radius:50%;pointer-events:none}
+.kbr-lbl{font-size:.55rem;font-weight:800;text-transform:uppercase;letter-spacing:1.5px;color:rgba(255,255,255,.48);margin-bottom:6px}
+.kbr-amounts{display:flex;align-items:baseline;gap:6px;margin-bottom:3px}
+.kbr-val{font-family:'JetBrains Mono',monospace;font-size:.9rem;font-weight:800;color:#FFC000;line-height:1}
+.kbr-sep{font-size:.62rem;color:rgba(255,255,255,.3);font-weight:700}
+.kbr-rev{font-family:'JetBrains Mono',monospace;font-size:.72rem;font-weight:700;color:rgba(255,255,255,.55);line-height:1}
+.kbr-sub{font-size:.59rem;color:rgba(255,255,255,.38);margin-bottom:10px}
+.kbr-bar-bg{height:7px;background:rgba(255,255,255,.1);border-radius:99px;overflow:hidden;margin-bottom:6px}
+.kbr-bar-fill{height:100%;border-radius:99px;transition:width .65s cubic-bezier(.4,0,.2,1)}
+.kbr-foot{display:flex;justify-content:space-between;align-items:center}
+.kbr-pct{font-family:'JetBrains Mono',monospace;font-size:1.35rem;font-weight:900;color:#fff}
+.kbr-status{font-size:.58rem;font-weight:800;padding:2px 7px;border-radius:99px;border:1px solid}
+@media(max-width:500px){.kbr-wrap{grid-template-columns:1fr}}
+
 /* ═══════════════ SCORE ═══════════════ */
 .score-r{width:90px;height:90px;position:relative;flex-shrink:0}
 .score-r svg{transform:rotate(-90deg)}
@@ -673,16 +690,26 @@ input,button,select{font-family:inherit;-webkit-tap-highlight-color:transparent}
  * RÈGLES DE SÉCURITÉ FIREBASE REALTIME DATABASE (à appliquer dans
  * la console Firebase → Realtime Database → Rules)
  * ════════════════════════════════════════════════════════════════
- *{
-  "rules": {
-    "fseye": {
-      "$uid": {
-        ".read": "auth.uid === $uid",
-        ".write": "auth.uid === $uid"
-      }
-    }
-  }
-}
+ * {
+ *   "rules": {
+ *     "fseye": {
+ *       "$uid": {
+ *         ".read":  "auth != null && auth.uid === $uid",
+ *         ".write": "auth != null && auth.uid === $uid"
+ *       }
+ *     },
+ *     "TR_Transactions": {
+ *       "$uid": {
+ *         ".read":  "auth != null && auth.uid === $uid",
+ *         ".write": "auth != null && auth.uid === $uid"
+ *       }
+ *     },
+ *     "TR_Archives":  { "$uid": { ".read":"auth.uid===$uid",".write":"auth.uid===$uid" }},
+ *     "TR_Agregats":  { "$uid": { ".read":"auth.uid===$uid",".write":"auth.uid===$uid" }},
+ *     "TR_Deltas":    { "$uid": { ".read":"auth.uid===$uid",".write":"auth.uid===$uid" }},
+ *     "$other":       { ".read": false, ".write": false }
+ *   }
+ * }
  */
 const FIREBASE_CONFIG = {
   apiKey:            "AIzaSyDuvgAdgGumtDS3h9IYE3KURxuLSg6geyM",
@@ -1369,6 +1396,7 @@ function renderDashboard() {
   pg.innerHTML = `
     ${alertHtml}
     <div class="kpi-g" id="kpi-g"></div>
+    <div class="kbr-wrap" id="kpi-budget-rev"></div>
 
     <!-- BLOC ÉCARTS : Argent qui échappe / Budget vs Réel -->
     ${(planifié > 0 || imprévus > 0) ? `
@@ -1424,6 +1452,63 @@ function renderDashboard() {
       </div>
     </div>
   `).join("");
+
+  // ── KPI Budget vs Revenus (navy/gold) ──────────────────
+  (function renderKpiBudgetRev() {
+    const el = document.getElementById("kpi-budget-rev");
+    if(!el) return;
+    const _rev      = getRevTotal(yr, mo);
+    const _mt       = getMonthTotals(yr, mo);
+    const _mtAll    = getMonthTotalsAll(yr, mo);
+    const _plan     = _mt.planned;
+    const _exec     = _mtAll.actual;
+    const noRev     = _rev <= 0;
+
+    function _barColor(pct) {
+      if(pct === null) return "rgba(255,192,0,.3)";
+      if(pct > 100) return "#CC3333";
+      if(pct > 85)  return "#C97B0A";
+      return "#2E9957";
+    }
+    function _statusStyle(pct) {
+      if(pct === null) return {lbl:"— Revenus non saisis", bg:"rgba(255,255,255,.06)", col:"rgba(255,255,255,.35)", brd:"rgba(255,255,255,.12)"};
+      if(pct > 100)   return {lbl:"⚠️ Dépassement", bg:"rgba(204,51,51,.15)", col:"#ff8080", brd:"rgba(204,51,51,.4)"};
+      if(pct > 85)    return {lbl:"⚡ Proche du seuil", bg:"rgba(201,123,10,.15)", col:"#f5c04a", brd:"rgba(201,123,10,.4)"};
+      return {lbl:"✅ Sous contrôle", bg:"rgba(46,153,87,.15)", col:"#7fcc9a", brd:"rgba(46,153,87,.4)"};
+    }
+    function _kbrCard(icon, label, amount, pct, refAmount, refLabel, subNote) {
+      const barW  = pct !== null ? Math.min(100, pct) : 0;
+      const bCol  = _barColor(pct);
+      const st    = _statusStyle(pct);
+      const pctLbl = pct !== null ? pct+"%" : "—";
+      return `
+        <div class="kbr-card">
+          <div class="kbr-lbl">${icon} ${label}</div>
+          <div class="kbr-amounts">
+            <span class="kbr-val">${fmtCFA(amount)}</span>
+            <span class="kbr-sep">vs</span>
+            <span class="kbr-rev">${refLabel} ${fmtCFA(refAmount)}</span>
+          </div>
+          <div class="kbr-sub">${subNote}</div>
+          <div class="kbr-bar-bg">
+            <div class="kbr-bar-fill" style="width:${barW}%;background:${bCol}"></div>
+          </div>
+          <div class="kbr-foot">
+            <span class="kbr-pct">${pctLbl}</span>
+            <span class="kbr-status" style="background:${st.bg};color:${st.col};border-color:${st.brd}">${st.lbl}</span>
+          </div>
+        </div>`;
+    }
+
+    const pct1 = noRev ? null : Math.round(_plan  / _rev * 100);
+    const pct2 = noRev ? null : Math.round(_exec  / _rev * 100);
+
+    el.innerHTML =
+      _kbrCard("📋","Budget planifié vs Revenus", _plan, pct1, _rev, "Rev →",
+               "Dépenses planifiées hors imprévus Tréso") +
+      _kbrCard("🔥","Budget exécuté vs Revenus",  _exec, pct2, _rev, "Rev →",
+               "Dépenses réelles incl. flux Trésorerie");
+  })();
 
   // Centre blocks
   document.getElementById("cbl-g").innerHTML = CTRS.map(ctr=>{
@@ -1561,9 +1646,16 @@ function renderSaisie() {
       </div>`).join("")}
     </div>
 
-    <!-- Tabs -->
+    <!-- Tabs — noms dynamiques via getCtrName() pour synchronisation avec les Paramètres -->
     <div class="tabs">
-      ${["💰 Revenus","🏘️ Thiès","🌆 Dakar","💳 Dettes","💸 Flux Tréso","📊 Synthèse"].map((t,i)=>`
+      ${[
+        "💰 Revenus",
+        CTR_CFG["PARENTS A THIES"].ic+" "+getCtrName("PARENTS A THIES"),
+        CTR_CFG["FAMILLE A DAKAR"].ic+" "+getCtrName("FAMILLE A DAKAR"),
+        CTR_CFG["DETTES"].ic+" "+getCtrName("DETTES"),
+        "💸 Flux Tréso",
+        "📊 Synthèse"
+      ].map((t,i)=>`
         <button class="tab${i===["rev","thies","dakar","dette","flux","recap"].indexOf(saisieTab)?" on":""}"
           onclick="switchSaisieTab(['rev','thies','dakar','dette','flux','recap'][${i}])">${t}</button>
       `).join("")}
