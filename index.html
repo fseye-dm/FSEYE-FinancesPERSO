@@ -8,7 +8,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="FSEYE">
 <meta name="theme-color" content="#1B3A2D">
-<title>FSEYE · Budget Familial v5.4</title>
+<title>FSEYE · Budget Familial v5.6</title>
 <link id="pwa-manifest-link" rel="manifest">
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
@@ -2302,7 +2302,7 @@ function renderParams() {
   pg.innerHTML = `
     <div style="font-weight:800;font-size:.93rem;margin-bottom:12px">Paramètres</div>
     <div class="tabs">
-      ${[["identity","👤 Identité"],["rubriques","📋 Rubriques"],["categories","🏷️ Catégories"],["centres","🏘️ Centres"],["alerts","🚨 Alertes"],["nonessential","⚖️ Non-essent."],["firebase","☁️ Firebase"],["conseil","💡 Conseil"],["virginiser","🧹 Virginiser"]].map(([id,lbl])=>`
+      ${[["identity","👤 Identité"],["rubriques","📋 Rubriques"],["categories","🏷️ Catégories"],["centres","🏘️ Centres"],["alerts","🚨 Alertes"],["nonessential","⚖️ Non-essent."],["firebase","☁️ Firebase"],["conseil","💡 Conseil"],["backup","💾 Sauvegarde"],["virginiser","🧹 Virginiser"]].map(([id,lbl])=>`
         <button class="tab${paramsTab===id?" on":""}" data-tab="${id}" onclick="switchParamsTab('${id}')">${lbl}</button>
       `).join("")}
     </div>
@@ -2323,7 +2323,7 @@ function switchParamsTab(t) {
 function renderParamsTab() {
   const c = document.getElementById("params-content");
   if(!c) return;
-  const fn = {identity:paramsIdentity, rubriques:paramsRubriques, categories:paramsCats, centres:paramsCentres, alerts:paramsAlerts, nonessential:paramsNonEssential, firebase:paramsFirebase, conseil:paramsConseil, virginiser:paramsVirginiser};
+  const fn = {identity:paramsIdentity, rubriques:paramsRubriques, categories:paramsCats, centres:paramsCentres, alerts:paramsAlerts, nonessential:paramsNonEssential, firebase:paramsFirebase, conseil:paramsConseil, backup:paramsBackup, virginiser:paramsVirginiser};
   if(fn[paramsTab]) fn[paramsTab](c);
 }
 
@@ -2652,6 +2652,309 @@ function toggleNECat(cat, checked) {
   });
   toast("✅ Préférence mise à jour — Dashboard recalculé");
 }
+
+// ═══════════════ PARAMÈTRES — SAUVEGARDE LOCALE ══════════════
+function paramsBackup(c) {
+  c.innerHTML = `
+  <div class="card" style="padding:18px;margin-bottom:12px;border-left:4px solid var(--blue)">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+      <span style="font-size:1.4rem">💾</span>
+      <div>
+        <div style="font-weight:800;font-size:.88rem;color:var(--blue)">Sauvegarde et Version Locale</div>
+        <div style="font-size:.65rem;color:var(--t3);margin-top:1px">Cold backup — exportez et restaurez 100 % de vos données FSEYE</div>
+      </div>
+    </div>
+    <div style="font-size:.73rem;color:var(--t1);line-height:1.75;margin-bottom:14px;background:var(--bl);padding:10px 12px;border-radius:8px">
+      ℹ️ Les exports capturent <strong>toutes les données Firebase</strong> du profil actif :<br>
+      années, revenus, commentaires, préférences, transactions Trésorerie.<br>
+      L'import restaure intégralement le profil (données locales <em>et</em> Firebase).
+    </div>
+
+    <!-- JSON -->
+    <div style="font-weight:700;font-size:.8rem;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid var(--brd)">📄 Sauvegarde JSON</div>
+    <div style="font-size:.71rem;color:var(--t3);margin-bottom:10px">Format natif — restauration parfaite, fichier lisible par machine.</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">
+      <button class="btn bp" onclick="exportBackupJSON()" style="flex:1;min-width:140px">
+        ⬇️ Exporter JSON
+      </button>
+      <label class="btn bg" style="flex:1;min-width:140px;cursor:pointer;justify-content:center">
+        ⬆️ Importer JSON
+        <input type="file" accept=".json" style="display:none" onchange="importBackupJSON(this)">
+      </label>
+    </div>
+
+    <!-- XLSX -->
+    <div style="font-weight:700;font-size:.8rem;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid var(--brd)">📊 Sauvegarde Excel (.xlsx)</div>
+    <div style="font-size:.71rem;color:var(--t3);margin-bottom:10px">Format tableur — lisible humainement, partageable, archivable.</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn bp" onclick="exportBackupXLSX()" style="flex:1;min-width:140px;background:var(--green);border-color:var(--green)">
+        ⬇️ Exporter Excel
+      </button>
+      <label class="btn bg" style="flex:1;min-width:140px;cursor:pointer;justify-content:center">
+        ⬆️ Importer Excel
+        <input type="file" accept=".xlsx" style="display:none" onchange="importBackupXLSX(this)">
+      </label>
+    </div>
+  </div>
+
+  <div class="card" style="padding:14px;border-left:3px solid var(--amber)">
+    <div style="font-weight:700;font-size:.79rem;margin-bottom:6px;color:var(--amber)">⚠️ Points importants</div>
+    <div style="font-size:.71rem;color:var(--t1);line-height:1.8">
+      • L'export fonctionne même hors-ligne (utilise le cache local).<br>
+      • L'import <strong>écrase</strong> toutes les données existantes sans confirmation supplémentaire.<br>
+      • Effectuez un export JSON avant tout import pour ne pas perdre de données.<br>
+      • Le fichier Excel importé doit provenir d'un export FSEYE (structure reconnue).
+    </div>
+  </div>
+  `;
+}
+
+/* ──────────────────────────────────────────────────────────────
+   EXPORT JSON — lit l'intégralité de fseye/${uid} sur Firebase
+   ──────────────────────────────────────────────────────────── */
+function exportBackupJSON() {
+  if(!currentUser || !fbDB) {
+    // Fallback cache local
+    const payload = { years:D, revs:revs, comments:comments, prefs:prefs, _source:"local_cache", _exportedAt:new Date().toISOString() };
+    _downloadJSON(payload, "FSEYE_backup_local_" + _backupDateStr() + ".json");
+    toast("⚠️ Hors-ligne — export depuis le cache local");
+    return;
+  }
+  toast("⏳ Lecture Firebase en cours…");
+  fbDB.ref("fseye/" + currentUser.uid).once("value").then(snap => {
+    const data = snap.val() || {};
+    const payload = { ...data, _exportedAt: new Date().toISOString(), _uid: currentUser.uid, _email: currentUser.email };
+    _downloadJSON(payload, "FSEYE_backup_" + _backupDateStr() + ".json");
+    toast("✅ Export JSON généré (" + Object.keys(data.years||{}).length + " années)");
+  }).catch(err => {
+    toast("❌ Erreur Firebase : " + err.message);
+  });
+}
+
+function _downloadJSON(obj, filename) {
+  const blob = new Blob([JSON.stringify(obj, null, 2)], {type:"application/json"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+}
+
+/* ──────────────────────────────────────────────────────────────
+   IMPORT JSON — restaure le profil depuis un fichier .json
+   ──────────────────────────────────────────────────────────── */
+function importBackupJSON(input) {
+  const file = input.files[0];
+  if(!file) return;
+  if(!window.confirm("⚠️ IMPORT JSON\n\nToutes les données actuelles seront remplacées par le fichier :\n" + file.name + "\n\nContinuer ?")) {
+    input.value = "";
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const data = JSON.parse(e.target.result);
+      // Restauration locale
+      if(data.years)    D        = data.years;
+      if(data.revs)     revs     = data.revs;
+      if(data.comments) comments = data.comments;
+      if(data.prefs)    prefs    = {...prefs, ...data.prefs};
+      // Réappliquer l'identité
+      if(prefs.displayName) applyIdentity(prefs.displayName, prefs.tagline);
+      // Pousser sur Firebase
+      if(currentUser && fbDB) {
+        const ref = fbDB.ref("fseye/" + currentUser.uid);
+        // Restaurer aussi les nœuds TR si présents
+        const payload = { years:D, revs:revs, comments:comments, prefs:prefs };
+        ["TR_Transactions","TR_Archives","TR_Agregats","TR_Deltas"].forEach(k => { if(data[k]) payload[k] = data[k]; });
+        ref.set(payload).then(() => toast("✅ Import JSON réussi — Firebase mis à jour")).catch(err => toast("⚠️ Local restauré, erreur Firebase : " + err.message));
+      }
+      recompute(yr);
+      refreshActivePage();
+      renderParamsTab();
+      toast("✅ Import JSON terminé — " + Object.keys(D).length + " années restaurées");
+    } catch(err) {
+      toast("❌ Fichier JSON invalide : " + err.message);
+    }
+    input.value = "";
+  };
+  reader.readAsText(file);
+}
+
+/* ──────────────────────────────────────────────────────────────
+   EXPORT EXCEL — génère un fichier .xlsx multi-feuilles
+   ──────────────────────────────────────────────────────────── */
+function exportBackupXLSX() {
+  if(typeof XLSX === "undefined") { toast("❌ SheetJS non chargé"); return; }
+  const wb = XLSX.utils.book_new();
+
+  // ── Feuille 1 : Transactions budgétaires ──
+  Object.keys(D).sort().forEach(yk => {
+    const entries = getEntries(yk);
+    const aoa = [["FSEYE — Budget " + yk],[""],
+      ["Centre","Rubrique","Catégorie",...MK.flatMap(m=>[m+" Plan.",m+" Réal."]),"Total Plan.","Total Réal.","Écart"]
+    ];
+    CTRS.forEach(ctr => {
+      const rows = entries.filter(e=>e.centre===ctr);
+      if(!rows.length) return;
+      rows.forEach(r => {
+        const row = [ctr, r.rubrique, r.categorie];
+        MK.forEach(m=>{ const md=getMD(r,m); row.push(md.planned||0, md.actual||0); });
+        row.push(r.total_planned, r.total_actual, r.total_actual - r.total_planned);
+        aoa.push(row);
+      });
+      aoa.push([]);
+    });
+    const tp = entries.reduce((s,e)=>s+e.total_planned,0);
+    const ta = entries.reduce((s,e)=>s+e.total_actual,0);
+    aoa.push(["TOTAL","",...MK.flatMap(m=>{ const mt=D[yk]?.monthly_totals?.[m]||{}; return [mt.planned||0,mt.actual||0]; }),tp,ta,ta-tp]);
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws["!cols"] = [{wch:22},{wch:34},{wch:14},...MK.flatMap(()=>[{wch:10},{wch:10}]),{wch:12},{wch:12},{wch:11}];
+    XLSX.utils.book_append_sheet(wb, ws, "Budget " + yk);
+  });
+
+  // ── Feuille 2 : Revenus ──
+  const revAoa = [["Clé (année_mois)","Label","Montant (CFA)"]];
+  Object.keys(revs).sort().forEach(k => {
+    (revs[k]||[]).forEach(r => revAoa.push([k, r.label||"", r.amount||0]));
+  });
+  const wsRev = XLSX.utils.aoa_to_sheet(revAoa);
+  wsRev["!cols"] = [{wch:18},{wch:34},{wch:16}];
+  XLSX.utils.book_append_sheet(wb, wsRev, "Revenus");
+
+  // ── Feuille 3 : Catégories ──
+  const catAoa = [["ID","Icône","Nom","Couleur"]];
+  (prefs.cats||[]).forEach(c => catAoa.push([c.id, c.ic, c.name, c.col]));
+  const wsCat = XLSX.utils.aoa_to_sheet(catAoa);
+  wsCat["!cols"] = [{wch:20},{wch:8},{wch:24},{wch:12}];
+  XLSX.utils.book_append_sheet(wb, wsCat, "Catégories");
+
+  // ── Feuille 4 : Centres ──
+  const ctrAoa = [["Code Centre","Nom personnalisé"]];
+  CTRS.forEach(k => ctrAoa.push([k, prefs.centreNames?.[k]||k]));
+  const wsCtr = XLSX.utils.aoa_to_sheet(ctrAoa);
+  wsCtr["!cols"] = [{wch:18},{wch:30}];
+  XLSX.utils.book_append_sheet(wb, wsCtr, "Centres");
+
+  // ── Feuille 5 : Préférences ──
+  const prefsAoa = [["Paramètre","Valeur"]];
+  prefsAoa.push(["Nom application", prefs.displayName||"FSEYE"]);
+  prefsAoa.push(["Sous-titre",      prefs.tagline||"Budget Familial"]);
+  prefsAoa.push(["Seuil alerte (%)",prefs.alertThreshold||110]);
+  prefsAoa.push(["Délai auto-logout (s)", prefs.idleDelay||120]);
+  prefsAoa.push(["Catégories non-essentielles",(prefs.nonEssentialCats||[]).join(", ")]);
+  prefsAoa.push(["Email",           currentUser?.email||""]);
+  prefsAoa.push(["UID Firebase",    currentUser?.uid||""]);
+  prefsAoa.push(["Date d'export",   new Date().toLocaleString("fr-FR")]);
+  const wsPref = XLSX.utils.aoa_to_sheet(prefsAoa);
+  wsPref["!cols"] = [{wch:30},{wch:40}];
+  XLSX.utils.book_append_sheet(wb, wsPref, "Préférences");
+
+  XLSX.writeFile(wb, "FSEYE_backup_" + _backupDateStr() + ".xlsx");
+  toast("✅ Export Excel généré — " + wb.SheetNames.length + " feuilles");
+}
+
+/* ──────────────────────────────────────────────────────────────
+   IMPORT EXCEL — lit les feuilles Budget*, Revenus, Catégories
+   ──────────────────────────────────────────────────────────── */
+function importBackupXLSX(input) {
+  const file = input.files[0];
+  if(!file) return;
+  if(!window.confirm("⚠️ IMPORT EXCEL\n\nToutes les données budgétaires et revenus seront remplacées par le fichier :\n" + file.name + "\n\nContinuer ?")) {
+    input.value = "";
+    return;
+  }
+  if(typeof XLSX === "undefined") { toast("❌ SheetJS non chargé"); input.value = ""; return; }
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const wb = XLSX.read(new Uint8Array(e.target.result), {type:"array"});
+      let imported = 0;
+
+      // ── Feuilles Budget ── (format exporté par FSEYE)
+      wb.SheetNames.filter(n => n.startsWith("Budget ")).forEach(sheetName => {
+        const yk = sheetName.replace("Budget ","").trim();
+        if(!yk.match(/^\d{4}$/)) return;
+        const aoa = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], {header:1, defval:""});
+        // Trouver la ligne header (ligne avec "Centre")
+        const hIdx = aoa.findIndex(r => r[0]==="Centre");
+        if(hIdx < 0) return;
+        if(!D[yk]) D[yk] = {total_planned:0,total_actual:0,ecart:0,by_centre:{},by_categorie:{},monthly_totals:{},entries:[]};
+        D[yk].entries = [];
+        for(let i=hIdx+1;i<aoa.length;i++) {
+          const r = aoa[i];
+          if(!r[0]||!r[1]) continue; // skip totaux / lignes vides
+          if(r[0]==="TOTAL") continue;
+          const entry = { centre:r[0], rubrique:r[1], categorie:r[2]||"", notes:{}, total_planned:0, total_actual:0 };
+          MK.forEach((m,mi) => {
+            const pl = parseFloat(r[3+mi*2])||0;
+            const ac = parseFloat(r[4+mi*2])||0;
+            if(!entry[m]) entry[m]={};
+            entry[m].planned = pl;
+            entry[m].actual  = ac;
+          });
+          D[yk].entries.push(entry);
+        }
+        recompute(yk);
+        imported++;
+      });
+
+      // ── Feuille Revenus ──
+      if(wb.SheetNames.includes("Revenus")) {
+        const revAoa = XLSX.utils.sheet_to_json(wb.Sheets["Revenus"], {header:1, defval:""});
+        const newRevs = {};
+        for(let i=1;i<revAoa.length;i++) {
+          const [k,lbl,amt] = revAoa[i];
+          if(!k) continue;
+          if(!newRevs[k]) newRevs[k] = [];
+          newRevs[k].push({label:String(lbl||""), amount:parseFloat(amt)||0});
+        }
+        revs = newRevs;
+      }
+
+      // ── Feuille Catégories ──
+      if(wb.SheetNames.includes("Catégories")) {
+        const catAoa = XLSX.utils.sheet_to_json(wb.Sheets["Catégories"], {header:1, defval:""});
+        const newCats = [];
+        for(let i=1;i<catAoa.length;i++) {
+          const [id,ic,name,col] = catAoa[i];
+          if(!id) continue;
+          newCats.push({id:String(id),ic:String(ic||"📌"),name:String(name||""),col:String(col||"#888")});
+        }
+        if(newCats.length) prefs.cats = newCats;
+      }
+
+      // ── Feuille Préférences ──
+      if(wb.SheetNames.includes("Préférences")) {
+        const pAoa = XLSX.utils.sheet_to_json(wb.Sheets["Préférences"], {header:1, defval:""});
+        pAoa.slice(1).forEach(([param,val]) => {
+          if(param==="Nom application") prefs.displayName = String(val);
+          if(param==="Sous-titre")      prefs.tagline     = String(val);
+          if(param==="Seuil alerte (%)") prefs.alertThreshold = parseInt(val)||110;
+          if(param==="Délai auto-logout (s)") prefs.idleDelay = parseInt(val)||120;
+        });
+      }
+
+      if(prefs.displayName) applyIdentity(prefs.displayName, prefs.tagline);
+      if(currentUser && fbDB) scheduleSync();
+      refreshActivePage();
+      renderParamsTab();
+      toast("✅ Import Excel terminé — " + imported + " année(s) restaurée(s)");
+    } catch(err) {
+      toast("❌ Erreur lecture Excel : " + err.message);
+    }
+    input.value = "";
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+/* Helper : date formatée pour nom de fichier */
+function _backupDateStr() {
+  const d = new Date();
+  return d.getFullYear() + String(d.getMonth()+1).padStart(2,"0") + String(d.getDate()).padStart(2,"0") + "_" + String(d.getHours()).padStart(2,"0") + String(d.getMinutes()).padStart(2,"0");
+}
+
 
 // ═══════════════ PARAMÈTRES — VIRGINISER ════════════════════
 function paramsVirginiser(c) {
