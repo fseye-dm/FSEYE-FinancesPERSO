@@ -8,7 +8,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="FSEYE">
 <meta name="theme-color" content="#1B3A2D">
-<title>FSEYE · Budget Familial v5.1</title>
+<title>FSEYE · Budget Familial v5.3</title>
 <link id="pwa-manifest-link" rel="manifest">
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
@@ -920,7 +920,12 @@ function doLogout() {
   // 4. Nettoyer le listener principal de données
   if(fbRef) { try { fbRef.off(); } catch(e){} fbRef = null; }
 
-  // 5. Déconnecter Firebase Auth
+  // 5. Effacer la session F5 (page active, année, mois)
+  sessionStorage.removeItem("fseye_page");
+  sessionStorage.removeItem("fseye_yr");
+  sessionStorage.removeItem("fseye_mo");
+
+  // 6. Déconnecter Firebase Auth
   if(typeof fbAuth !== "undefined" && fbAuth) fbAuth.signOut();
 }
 
@@ -947,7 +952,23 @@ function startSync(uid) {
   ref.on("value", snap => {
     const data = snap.val();
     if(data) {
-      if(data.years)    D       = data.years;
+      if(data.years) {
+        D = data.years;
+        // ── Migration v4→v5.2 : convertir e.note (global) → e.notes[???] ──
+        // On ne peut pas savoir QUEL mois l'ancienne note concernait,
+        // donc on la supprime proprement pour éviter qu'elle s'affiche partout.
+        let needsMigration = false;
+        Object.values(D).forEach(yd => {
+          (yd.entries || []).forEach(entry => {
+            if("note" in entry && typeof entry.note === "string") {
+              delete entry.note;
+              if(!entry.notes || typeof entry.notes !== "object") entry.notes = {};
+              needsMigration = true;
+            }
+          });
+        });
+        if(needsMigration) setTimeout(pushToFirebase, 800); // re-push propre
+      }
       if(data.revs)     revs    = data.revs;
       if(data.comments) comments= data.comments;
       if(data.prefs)    prefs   = {...prefs, ...data.prefs};
@@ -1095,13 +1116,22 @@ function showApp(withFirebase) {
 
 function initApp(withFirebase) {
   buildPills();
+
+  // ── Restaurer état session F5/Ctrl+F5 ──────────────────────
+  const _savedYr   = sessionStorage.getItem("fseye_yr");
+  const _savedMo   = sessionStorage.getItem("fseye_mo");
+  const _savedPage = sessionStorage.getItem("fseye_page") || "dashboard";
+  if(_savedYr && D[_savedYr]) yr = _savedYr;
+  if(_savedMo && MK.includes(_savedMo)) mo = _savedMo;
+  // ────────────────────────────────────────────────────────────
+
   document.getElementById("yr-lbl").textContent = yr;
   const savedTheme = localStorage.getItem("fseye_theme");
   if(savedTheme) setTheme(savedTheme, false);
   const savedId = JSON.parse(localStorage.getItem("fseye_id")||"{}");
   if(savedId.name) applyIdentity(savedId.name, savedId.tagline);
   if(withFirebase && currentUser) startSync(currentUser.uid);
-  goTo("dashboard");
+  goTo(_savedPage);
 }
 
 function buildPills() {
@@ -1121,6 +1151,7 @@ function buildPills() {
 
 function selMonth(m) {
   mo = m;
+  sessionStorage.setItem("fseye_mo", mo); // Persistance F5
   document.querySelectorAll(".mp").forEach((p,i) => p.classList.toggle("on", MK[i]===mo));
   refreshActivePage();
 }
@@ -1130,6 +1161,7 @@ function changeYr(d) {
   const ni   = yrs.indexOf(yr) + d;
   if(ni >= 0 && ni < yrs.length) {
     yr = yrs[ni];
+    sessionStorage.setItem("fseye_yr", yr); // Persistance F5
     document.getElementById("yr-lbl").textContent = yr;
     refreshActivePage();
   }
@@ -1146,6 +1178,7 @@ function goTo(id) {
   const bn = document.getElementById("bn-"+id);
   if(bn) bn.classList.add("on");
   document.getElementById("pg-ttl").textContent = NAV_TITLES[id] || id;
+  sessionStorage.setItem("fseye_page", id); // Persistance F5
   closeSB();
   renderPage(id);
 }
@@ -1799,8 +1832,8 @@ function renderDepBloc(c, ctr) {
             const p=md.planned||0, a=md.actual||0, ec=a-p;
             const pt=p>0?(a/p*100):0;
             const rcl=pt>thresh?"tbl-ov":pt>100?"tbl-wn":"";
-            // ✅ v5.1: note par mois (backward-compat avec ancien e.note global)
-            const note = (e.notes && e.notes[mo]) || (e.notes ? "" : (e.note||""));
+            // ✅ v5.2: note strictement par mois — e.notes[mo] uniquement
+            const note = (e.notes && e.notes[mo]) ? e.notes[mo] : "";
             const hasNote = note.trim().length > 0;
             return `<tr class="${rcl}" id="drow-${idx}">
               <td style="text-align:right">
@@ -1821,11 +1854,11 @@ function renderDepBloc(c, ctr) {
             <tr class="note-row" id="note-row-${idx}">
               <td colspan="6">
                 <div class="note-wrap${hasNote?" open":""}" id="note-wrap-${idx}">
-                  <textarea class="note-ta" id="note-ta-${idx}" placeholder="💬 Commentaire sur cette rubrique (facultatif)…"
-                    onblur="saveNote(${idx},this.value)">${esc(note)}</textarea>
+                  <textarea class="note-ta" id="note-ta-${idx}" data-mo="${mo}" placeholder="💬 Commentaire sur cette rubrique (facultatif)…"
+                    onblur="saveNote(${idx},this.value,this.dataset.mo)">${esc(note)}</textarea>
                   <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px">
                     <span style="font-size:.62rem;color:var(--t3)">Enregistré automatiquement</span>
-                    ${hasNote?`<button class="btn br" style="font-size:.62rem;padding:2px 8px;min-height:24px" onclick="clearNote(${idx})">🗑️ Effacer</button>`:""}
+                    ${hasNote?`<button class="btn br" style="font-size:.62rem;padding:2px 8px;min-height:24px" onclick="clearNote(${idx},'${mo}')">🗑️ Effacer</button>`:""}
                   </div>
                 </div>
               </td>
@@ -1883,7 +1916,8 @@ function addDepLine(ctr) {
   D[yr].entries.push({
     centre:ctr, rubrique:"Nouvelle dépense", beneficiaire:"", categorie:"AUTRE",
     total_planned:0, total_actual:0, ecart:0,
-    monthly:MK.map(m=>({month:m,planned:0,actual:0}))
+    monthly:MK.map(m=>({month:m,planned:0,actual:0})),
+    notes:{}
   });
   recompute(yr);
   scheduleSync();
@@ -2180,8 +2214,8 @@ function renderParams() {
   pg.innerHTML = `
     <div style="font-weight:800;font-size:.93rem;margin-bottom:12px">Paramètres</div>
     <div class="tabs">
-      ${[["identity","👤 Identité"],["rubriques","📋 Rubriques"],["categories","🏷️ Catégories"],["centres","🏘️ Centres"],["alerts","🚨 Alertes"],["nonessential","⚖️ Non-essentielles"],["firebase","☁️ Firebase"],["conseil","💡 Conseil"]].map(([id,lbl])=>`
-        <button class="tab${paramsTab===id?" on":""}" onclick="switchParamsTab('${id}')">${lbl}</button>
+      ${[["identity","👤 Identité"],["rubriques","📋 Rubriques"],["categories","🏷️ Catégories"],["centres","🏘️ Centres"],["alerts","🚨 Alertes"],["nonessential","⚖️ Non-essent."],["firebase","☁️ Firebase"],["conseil","💡 Conseil"],["virginiser","🧹 Virginiser"]].map(([id,lbl])=>`
+        <button class="tab${paramsTab===id?" on":""}" data-tab="${id}" onclick="switchParamsTab('${id}')">${lbl}</button>
       `).join("")}
     </div>
     <div id="params-content"></div>
@@ -2191,10 +2225,9 @@ function renderParams() {
 
 function switchParamsTab(t) {
   paramsTab = t;
+  // Utiliser data-tab pour une détection fiable (évite les bugs textContent)
   document.querySelectorAll("#pg-params .tab").forEach(btn => {
-    btn.classList.toggle("on", btn.textContent.includes(
-      {identity:"Identité",rubriques:"Rubriques",categories:"Catégories",centres:"Centres",alerts:"Alertes",firebase:"Firebase"}[t]
-    ));
+    btn.classList.toggle("on", btn.getAttribute("data-tab") === t);
   });
   renderParamsTab();
 }
@@ -2202,7 +2235,7 @@ function switchParamsTab(t) {
 function renderParamsTab() {
   const c = document.getElementById("params-content");
   if(!c) return;
-  const fn = {identity:paramsIdentity, rubriques:paramsRubriques, categories:paramsCats, centres:paramsCentres, alerts:paramsAlerts, nonessential:paramsNonEssential, firebase:paramsFirebase, conseil:paramsConseil};
+  const fn = {identity:paramsIdentity, rubriques:paramsRubriques, categories:paramsCats, centres:paramsCentres, alerts:paramsAlerts, nonessential:paramsNonEssential, firebase:paramsFirebase, conseil:paramsConseil, virginiser:paramsVirginiser};
   if(fn[paramsTab]) fn[paramsTab](c);
 }
 
@@ -2311,32 +2344,44 @@ function toggleNote(idx) {
   if(isOpen && ta) setTimeout(()=>ta.focus(),250);
 }
 
-function saveNote(idx, val) {
+function saveNote(idx, val, moKey) {
   if(!D[yr]?.entries[idx]) return;
-  // ✅ v5.1: notes par mois — chaque mois a son propre commentaire
-  if(!D[yr].entries[idx].notes) D[yr].entries[idx].notes = {};
-  const old = D[yr].entries[idx].notes[mo] || "";
-  D[yr].entries[idx].notes[mo] = val;
-  // Mettre à jour le bouton en live
-  const btn = document.getElementById("notebtn-"+idx);
-  const hasNote = val.trim().length > 0;
-  if(btn) {
-    btn.className = "note-btn" + (hasNote?" has-note":"");
-    btn.textContent = "💬" + (hasNote?" ✓":"");
+  // moKey = mois capturé via data-mo au moment du rendu (évite la race condition :
+  // le blur peut se déclencher APRÈS que l'utilisateur a cliqué sur un autre mois,
+  // au moment où la variable globale mo a déjà changé)
+  const m = (moKey && MK.includes(moKey)) ? moKey : mo;
+  const entry = D[yr].entries[idx];
+  // Migration v4→v5 : supprimer l'ancien champ global e.note
+  if("note" in entry) delete entry.note;
+  if(!entry.notes || typeof entry.notes !== "object") entry.notes = {};
+  const old = entry.notes[m] || "";
+  entry.notes[m] = val;
+  // Mettre à jour le bouton uniquement si le mois affiché correspond au mois sauvé
+  if(m === mo) {
+    const btn = document.getElementById("notebtn-"+idx);
+    const hasNote = val.trim().length > 0;
+    if(btn) {
+      btn.className = "note-btn" + (hasNote?" has-note":"");
+      btn.textContent = "💬" + (hasNote?" ✓":"");
+    }
   }
   if(val !== old) scheduleSync();
 }
 
-function clearNote(idx) {
+function clearNote(idx, moKey) {
   if(!D[yr]?.entries[idx]) return;
-  D[yr].entries[idx].note = "";
+  const m = (moKey && MK.includes(moKey)) ? moKey : mo;
+  const entry = D[yr].entries[idx];
+  if("note" in entry) delete entry.note;
+  if(!entry.notes || typeof entry.notes !== "object") entry.notes = {};
+  entry.notes[m] = "";
   scheduleSync();
-  renderSaisieTab(); // rafraîchir pour retirer le bouton "Effacer"
+  renderSaisieTab();
 }
 
 function addRubrique() {
   if(!D[yr]) return;
-  D[yr].entries.push({centre:"AUTRES DEPENSES",rubrique:"Nouvelle rubrique",beneficiaire:"",categorie:"AUTRE",total_planned:0,total_actual:0,ecart:0,monthly:MK.map(m=>({month:m,planned:0,actual:0}))});
+  D[yr].entries.push({centre:"AUTRES DEPENSES",rubrique:"Nouvelle rubrique",beneficiaire:"",categorie:"AUTRE",total_planned:0,total_actual:0,ecart:0,monthly:MK.map(m=>({month:m,planned:0,actual:0})),notes:{}});
   recompute(yr); scheduleSync(); renderParamsTab(); toast("Rubrique ajoutée");
 }
 
@@ -2471,8 +2516,8 @@ function saveAlerts() {
 }
 
 function paramsNonEssential(c) {
-  // Catégories disponibles dans l'application
-  const ALL_CATS = ["VITALE","IMPORTANTE","AUTRE","LOISIRS","FACULTATIVE","DETTES"];
+  // Utiliser les catégories réelles de l'application (prefs.cats ou DEFAULT_CATS_LIST)
+  const allCats = prefs.cats || DEFAULT_CATS_LIST;
   const defaultNE = ["LOISIRS","FACULTATIVE"];
   const saved = prefs.nonEssentialCats || defaultNE;
 
@@ -2484,13 +2529,12 @@ function paramsNonEssential(c) {
         Le KPI &laquo; Non-essentielles &raquo; du Dashboard sera calculé selon cette sélection.
       </div>
       <div style="display:flex;flex-direction:column;gap:9px" id="ne-cats-list">
-        ${ALL_CATS.map(cat=>{
-          const checked = saved.includes(cat);
-          const labels = {VITALE:"🏠 VITALE (dépenses vitales)",IMPORTANTE:"⭐ IMPORTANTE",AUTRE:"📦 AUTRE",LOISIRS:"🎭 LOISIRS",FACULTATIVE:"✨ FACULTATIVE",DETTES:"💳 DETTES"};
+        ${allCats.map(cat=>{
+          const checked = saved.includes(cat.id);
           return `<label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:9px 12px;border:1.5px solid ${checked?"var(--green)":"var(--brd)"};border-radius:9px;background:${checked?"var(--gl)":"var(--bg)"}">
-            <input type="checkbox" value="${cat}" ${checked?"checked":""} style="width:16px;height:16px;accent-color:var(--green)"
-              onchange="toggleNECat('${cat}',this.checked)">
-            <span style="font-size:.8rem;font-weight:${checked?"700":"600"}">${labels[cat]||cat}</span>
+            <input type="checkbox" value="${cat.id}" ${checked?"checked":""} style="width:16px;height:16px;accent-color:var(--green)"
+              onchange="toggleNECat('${cat.id}',this.checked)">
+            <span style="font-size:.8rem;font-weight:${checked?"700":"600"}">${cat.ic} ${cat.name}</span>
           </label>`;
         }).join("")}
       </div>
@@ -2519,6 +2563,127 @@ function toggleNECat(cat, checked) {
     }
   });
   toast("✅ Préférence mise à jour — Dashboard recalculé");
+}
+
+// ═══════════════ PARAMÈTRES — VIRGINISER ════════════════════
+function paramsVirginiser(c) {
+  c.innerHTML = `
+    <div class="card" style="padding:18px;border-left:4px solid var(--red);margin-bottom:12px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+        <span style="font-size:1.4rem">🧹</span>
+        <div style="font-weight:800;font-size:.88rem;color:var(--red)">Virginiser l'Application</div>
+      </div>
+      <div style="font-size:.74rem;color:var(--t1);line-height:1.75;margin-bottom:14px;background:var(--rl);padding:12px;border-radius:8px">
+        <strong>⚠️ Cette opération efface TOUTES les données :</strong><br>
+        • Toutes les années (D), tous les mois<br>
+        • Tous les revenus (revs)<br>
+        • Toutes les transactions Trésorerie<br>
+        • Toutes les préférences (catégories, centres, alertes)<br>
+        • Identité, nom et sous-titre de l'application<br><br>
+        <strong>Les données Firebase seront aussi effacées.</strong><br>
+        <span style="color:var(--green)">✅ Utile pour adapter l'app à une autre famille.</span>
+      </div>
+
+      <div style="margin-bottom:14px">
+        <label class="lbl-s">🔑 Nouveau nom de l'application</label>
+        <input id="vg-name" class="fld" placeholder="Ex : DIALLO Budget" style="margin-bottom:8px">
+        <label class="lbl-s">📝 Nouveau sous-titre</label>
+        <input id="vg-tag" class="fld" placeholder="Ex : Budget Familial Dakar">
+      </div>
+
+      <div style="margin-bottom:14px">
+        <label class="lbl-s">🔒 Mot de confirmation (tapez : <strong>VIERGE</strong>)</label>
+        <input id="vg-confirm" class="fld" placeholder="VIERGE" autocomplete="off" style="letter-spacing:3px;font-weight:700">
+        <div style="font-size:.65rem;color:var(--t3);margin-top:3px">Vous devez taper exactement le mot VIERGE pour confirmer.</div>
+      </div>
+
+      <button class="btn br bfw" onclick="doVirginiser()" style="background:var(--red);color:#fff;border-color:var(--red);font-size:.82rem">
+        🗑️ Virginiser — Tout effacer et recommencer
+      </button>
+    </div>
+
+    <div class="card" style="padding:16px;border-left:3px solid var(--amber)">
+      <div style="font-weight:800;font-size:.82rem;margin-bottom:8px;color:var(--amber)">📋 Ce qui est CONSERVÉ après virginisation</div>
+      <div style="font-size:.73rem;color:var(--t1);line-height:1.75">
+        ✅ La connexion Firebase (email / mot de passe)<br>
+        ✅ Le thème visuel (clair / sombre / océan)<br>
+        ✅ L'icône PWA (si définie)<br>
+        ✅ La configuration Firebase (clés API)<br><br>
+        <strong>Après virginisation :</strong> L'application démarre avec une seule année vide (année en cours) et les catégories par défaut. Vous pouvez ensuite créer vos propres rubriques, centres et catégories.
+      </div>
+    </div>
+  `;
+}
+
+function doVirginiser() {
+  const name    = (document.getElementById("vg-name")?.value || "").trim();
+  const tag     = (document.getElementById("vg-tag")?.value  || "").trim();
+  const confirm = (document.getElementById("vg-confirm")?.value || "").trim().toUpperCase();
+
+  if(confirm !== "VIERGE") {
+    toast("❌ Mot de confirmation incorrect. Tapez exactement : VIERGE");
+    return;
+  }
+  if(!window.confirm("⚠️ DERNIÈRE CONFIRMATION\n\nToutes les données seront DÉFINITIVEMENT effacées sur Firebase et en local.\n\nContinuer ?")) return;
+
+  const newName = name || "FSEYE";
+  const newTag  = tag  || "Budget Familial";
+  const curYr   = String(new Date().getFullYear());
+
+  // Créer une année vide pour l'année courante
+  const emptyYear = {
+    total_planned:0, total_actual:0, ecart:0,
+    by_centre:{}, by_categorie:{},
+    monthly_totals: Object.fromEntries(MK.map(m=>[m,{planned:0,actual:0}])),
+    entries:[]
+  };
+
+  // Réinitialiser toutes les données
+  D        = { [curYr]: emptyYear };
+  revs     = {};
+  comments = {};
+  prefs    = {
+    alertThreshold: 110,
+    alertRequired:  true,
+    cats:           DEFAULT_CATS_LIST.map(c=>({...c})),
+    idleDelay:      120,
+    centreNames:    {},
+    displayName:    newName,
+    tagline:        newTag,
+    nonEssentialCats: ["LOISIRS","FACULTATIVE"]
+  };
+  yr = curYr;
+  mo = MK[new Date().getMonth()];
+
+  // Effacer sessionStorage
+  sessionStorage.removeItem("fseye_yr");
+  sessionStorage.removeItem("fseye_mo");
+  sessionStorage.removeItem("fseye_page");
+
+  // Mettre à jour identité
+  applyIdentity(newName, newTag);
+  localStorage.setItem("fseye_id", JSON.stringify({name:newName, tagline:newTag}));
+  document.getElementById("yr-lbl").textContent = yr;
+  buildPills();
+
+  // Effacer aussi les transactions Trésorerie Firebase
+  if(currentUser && fbDB) {
+    const uid = currentUser.uid;
+    // Effacer le nœud principal (données budgétaires)
+    fbDB.ref("fseye/" + uid).remove();
+    // Effacer les transactions Trésorerie
+    fbDB.ref("TR_Transactions/" + uid).remove();
+    fbDB.ref("TR_Archives/" + uid).remove();
+    fbDB.ref("TR_Agregats/" + uid).remove();
+    fbDB.ref("TR_Deltas/" + uid).remove();
+  }
+
+  // Repousser les données vierges sur Firebase
+  scheduleSync();
+
+  // Rafraîchir l'interface
+  goTo("dashboard");
+  toast("✅ Application virginisée avec succès ! Bienvenue " + newName, 4000);
 }
 
 function paramsConseil(c) {
@@ -2646,12 +2811,16 @@ function paramsFirebase(c) {
 }
 
 function confirmReset() {
-  if(!confirm("Réinitialiser toutes les données aux valeurs initiales ? Cette action est irréversible.")) return;
+  if(!confirm("Réinitialiser toutes les données aux valeurs initiales ? Cette action est irréversible.\n\nNote : Les préférences (catégories, alertes) seront aussi réinitialisées.")) return;
   D = JSON.parse(JSON.stringify(INIT_DATA));
-  revs = {}; comments = {};
+  revs = {};
+  comments = {};
+  prefs = {alertThreshold:110, alertRequired:true, cats:null, idleDelay:120, centreNames:{}, displayName:"FSEYE", tagline:"Budget Familial"};
   scheduleSync();
+  applyIdentity("FSEYE", "Budget Familial");
+  localStorage.setItem("fseye_id", JSON.stringify({name:"FSEYE", tagline:"Budget Familial"}));
   renderPage("params");
-  toast("Données réinitialisées");
+  toast("✅ Données réinitialisées aux valeurs initiales");
 }
 
 // ═══════════════════════════════════════════════════════════════
