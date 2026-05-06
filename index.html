@@ -8,7 +8,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="FSEYE">
 <meta name="theme-color" content="#1B3A2D">
-<title>FSEYE · Budget Familial v5.9</title>
+<title>FSEYE · Budget Familial v7.0</title>
 <link id="pwa-manifest-link" rel="manifest">
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
@@ -17,7 +17,6 @@
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
-<!-- Firestore pour le module Trésorerie -->
 
 <style>
 /* ═══════════════ RESET & VARIABLES ═══════════════ */
@@ -936,10 +935,14 @@ function doLogout() {
     window._globalCleanup = [];
   }
 
-  // 3. Nettoyer les listeners Trésorerie
+  // 3. Nettoyer les listeners Trésorerie (transactions + connectivité)
   if(typeof trListeners !== "undefined" && trListeners.length) {
     trListeners.forEach(u => { try { u(); } catch(e){} });
     trListeners.length = 0;
+  }
+  if(typeof _trConnListener === "function") {
+    try { _trConnListener(); } catch(e){}
+    _trConnListener = null;
   }
 
   // 4. Nettoyer le listener principal de données
@@ -997,7 +1000,6 @@ function startSync(uid) {
       if(data.revs)     revs    = data.revs;
       if(data.comments) comments= data.comments;
       if(data.prefs)    prefs   = {...prefs, ...data.prefs};
-      // Apply profile
       // Apply profile
       if(data.prefs?.displayName) applyIdentity(data.prefs.displayName, data.prefs.tagline);
       // Initialiser prefs.cats avec les catégories par défaut si absent
@@ -1738,7 +1740,9 @@ function renderFluxTresorerie(c) {
     if(currentUser && typeof firebase !== "undefined" && fbDB) trInit();
   }
   const saisieYM = yr + "-" + String(MK.indexOf(mo)+1).padStart(2,"0");
-  const allTxns  = window.trTransactions || [];
+  // ✅ FIX v6.0 : trTransactions est déclaré avec let → n'est PAS sur window.
+  // Accès direct depuis le même scope de script.
+  const allTxns  = (typeof trTransactions !== "undefined" ? trTransactions : []);
   // Filtrer par mois actif de la saisie
   const txns = allTxns
     .filter(t => {
@@ -1825,8 +1829,11 @@ function renderRevBloc(c) {
   if(!revs[k] || revs[k].length === 0) {
     revs[k] = DEFAULT_REV_LINES.map(r => ({...r}));
   }
-  if(CONTRIB_FRERES_REVS[k] && !revs[k].find(r=>r.label==="CONTRIBUTION DES FRÈRES")) {
-    revs[k].push({label:"CONTRIBUTION DES FRÈRES", amount: CONTRIB_FRERES_REVS[k]});
+  // Note : CONTRIB_FRERES_REVS utilise des clés en minuscules (ex: "2026_mai")
+  // alors que k = yr+"_"+mo avec mo en MAJUSCULES (ex: "2026_MAI") → toLowerCase() requis
+  const _cfKey = k.toLowerCase();
+  if(CONTRIB_FRERES_REVS[_cfKey] && !revs[k].find(r=>r.label==="CONTRIBUTION DES FRÈRES")) {
+    revs[k].push({label:"CONTRIBUTION DES FRÈRES", amount: CONTRIB_FRERES_REVS[_cfKey]});
   }
   const rows = revs[k];
   const tot  = rows.reduce((s,r)=>s+(parseFloat(r.amount)||0),0);
@@ -3094,16 +3101,12 @@ function doVirginiser() {
   document.getElementById("yr-lbl").textContent = yr;
   buildPills();
 
-  // Effacer aussi les transactions Trésorerie Firebase
+  // Effacer aussi les transactions Trésorerie Firebase (supprime tout le nœud du profil)
   if(currentUser && fbDB) {
     const uid = currentUser.uid;
-    // Effacer le nœud principal (données budgétaires)
-    fbDB.ref("fseye/" + uid).remove();
-    // Effacer les transactions Trésorerie
-    fbDB.ref("fseye/" + uid + "/TR_Transactions").remove();
-    fbDB.ref("fseye/" + uid + "/TR_Archives").remove();
-    fbDB.ref("fseye/" + uid + "/TR_Agregats").remove();
-    fbDB.ref("fseye/" + uid + "/TR_Deltas").remove();
+    // Supprimer le nœud racine du profil — supprime automatiquement tous les sous-nœuds
+    // (TR_Transactions, TR_Archives, TR_Agregats, TR_Deltas, years, prefs, etc.)
+    fbDB.ref("fseye/" + uid).remove().catch(e => console.warn("[Virginiser] Remove error:", e.message));
   }
 
   // Repousser les données vierges sur Firebase
@@ -3169,7 +3172,7 @@ function generateCoachAnalysis() {
   const top3Fuites = centreEcarts.slice(0, 3);
 
   // 6. Transactions Trésorerie du mois (catégories des fuites)
-  const trMoTxns = (window.trTransactions || []).filter(t =>
+  const trMoTxns = (typeof trTransactions !== "undefined" ? trTransactions : []).filter(t =>
     t.type === "dep" && (t.yearMonth || (t.date||"").slice(0,7)) === (anaYr + "-" + String(MK.indexOf(anaMo)+1).padStart(2,"0"))
   );
 
@@ -3221,7 +3224,7 @@ function generateCoachAnalysis() {
 
 function paramsConseil(c) {
   // ── Vérifier si TR_Transactions existe (profil vierge) ──
-  const hasTr = window.trTransactions && window.trTransactions.length > 0;
+  const hasTr = (typeof trTransactions !== "undefined") && trTransactions.length > 0;
   const hasAnyBudget = Object.keys(D || {}).some(y => (D[y]?.entries||[]).some(e => e.total_actual > 0));
 
   if (!hasTr && !hasAnyBudget) {
@@ -3550,6 +3553,9 @@ function resetIdleTimer() {
         trListeners.forEach(u => { try { u(); } catch(e){} });
         trListeners.length = 0;
       }
+      if(typeof _trConnListener === "function") {
+        try { _trConnListener(); } catch(e){} _trConnListener = null;
+      }
       if(fbRef) { try { fbRef.off(); } catch(e){} }
       firebase.auth().signOut().then(() => {
         currentUser = null;
@@ -3704,7 +3710,8 @@ let trSearchQuery  = "";        // v5.9 — filtre texte live (barre de recherch
 let trFormType     = "rev";
 let trSelMode      = "wave";
 let trSubPage      = "dashboard";
-let trListeners    = [];
+let trListeners    = [];        // listeners transaction/delta (nettoyés à chaque resouscription)
+let _trConnListener = null;     // v7.0 — listener connectivité séparé (ne doit JAMAIS être tué par trSubscribeTransactions)
 let trFbOk         = false;
 
 // Mois/Année de vue Trésorerie (indépendant du yr/mo global)
@@ -3732,8 +3739,14 @@ function trInit() {
     console.warn("[Trésorerie] Firebase non disponible — module désactivé");
     return;
   }
+  // v7.0 FIX : nettoyer le listener connectivité précédent s'il existe (reconnexion profil)
+  if(typeof _trConnListener === "function") {
+    try { _trConnListener(); } catch(e){}
+    _trConnListener = null;
+  }
   try {
-    // Connectivité Trésorerie — via fbDB (partagé), stocké dans trListeners
+    // Connectivité Trésorerie — stockée dans _trConnListener (séparé de trListeners)
+    // v7.0 FIX : ne pas mettre dans trListeners car trSubscribeTransactions le nettoierait
     const _trConnRef = fbDB.ref(".info/connected");
     const _trConnFn  = snap => {
       const wasOk = trFbOk;
@@ -3741,14 +3754,15 @@ function trInit() {
       if(trFbOk) {
         trFlushOfflineQueue();
         // Si on revient en ligne et que le listener a échoué, se réabonner
-        if(!wasOk && trListeners.length <= 1) {
+        if(!wasOk && trListeners.length === 0) {
           trSubscribeTransactions();
           trSubscribeDeltas();
         }
       }
     };
     _trConnRef.on("value", _trConnFn);
-    trListeners.push(() => _trConnRef.off("value", _trConnFn)); // nettoyé avec trListeners
+    // Stocker dans _trConnListener pour cleanup propre au logout
+    _trConnListener = () => _trConnRef.off("value", _trConnFn);
 
     trLoadPrefs();
     trLoadCategories();
@@ -3819,7 +3833,8 @@ function trSubscribeTransactions() {
   if(!currentUser) return;
   if(typeof firebase === "undefined" || !fbDB) return;
 
-  // Nettoyer les anciens listeners
+  // v7.0 FIX : nettoyer SEULEMENT les listeners de données (transaction/delta),
+  // PAS le listener de connectivité (_trConnListener) qui est géré séparément dans trInit().
   trListeners.forEach(u => { try { u(); } catch(e){} });
   trListeners = [];
 
@@ -3849,9 +3864,8 @@ function trSubscribeTransactions() {
     });
     trTransactions.sort((a,b) => (b.timestamp||0) - (a.timestamp||0));
     console.log(`[Trésorerie] 📥 Données reçues : ${_dbgCount} transaction(s) sur ${Object.keys(allMonths).length} mois · chemin: ${path}`);
-    // ── Rafraîchissement de toutes les vues actives (v5.9) ──
+    // ── Rafraîchissement de toutes les vues actives (v6.0) — silencieux, sans toast ──
     _trRefreshAllViews();
-    console.log("[Trésorerie] ✅ Rendu terminé (trSubPage=" + trSubPage + ")");
   }, err => {
     // ERR_NETWORK_IO_SUSPENDED / CORS / permission-denied : retry silencieux
     const isNetErr = err.code === "NETWORK_ERROR" ||
@@ -3883,7 +3897,16 @@ function _trScheduleRetry() {
 // ── v5.9 : Dispatcher centralisé de rafraîchissement ──────────────
 // Appelé à chaque mise à jour de trTransactions (callback Firebase).
 // Gère TOUTES les vues qui consomment trTransactions, sans exception.
+// ── v5.9 / v6.0 : Dispatcher centralisé de rafraîchissement ──────────────
+// Appelé à chaque mise à jour de trTransactions (callback Firebase).
+// Gère TOUTES les vues qui consomment trTransactions, sans exception.
 function _trRefreshAllViews() {
+  // ✅ FIX v6.0 : Ne pas rafraîchir le DOM des listes pendant qu'un champ de
+  // saisie est actif — évite les sauts d'affichage et pertes de focus sur mobile.
+  if(typeof _inputFocused !== "undefined" && _inputFocused) {
+    if(typeof _pendingRefresh !== "undefined") _pendingRefresh = true;
+    return;
+  }
   // 1. Module Trésorerie — onglet actif
   switch(trSubPage) {
     case "dashboard":
@@ -4295,11 +4318,13 @@ function trRenderChart2() {
 // Je les inclus pour que le module soit complet.
 function trRenderTransactions(c) {
   const isDesktop = window.innerWidth >= 768;
+  // ✅ FIX v6.0 : décompte basé sur le mois affiché (trCurYM), pas le total global
+  const curYMCount = trTransactions.filter(t=>(t.yearMonth||(t.date||"").slice(0,7))===trCurYM()).length;
   c.innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
       <div>
         <div style="font-weight:800;font-size:${isDesktop?".95rem":".88rem"}">Transactions — ${TR_MOISL[trMonth]} ${trYear}</div>
-        <div style="font-size:.65rem;color:var(--t3);margin-top:1px">${trTransactions.length} transaction${trTransactions.length>1?"s":""} au total · ${trTransactions.filter(t=>(t.yearMonth||(t.date||"").slice(0,7))===trCurYM()).length} ce mois</div>
+        <div style="font-size:.65rem;color:var(--t3);margin-top:1px">${curYMCount} transaction${curYMCount>1?"s":""} ce mois</div>
       </div>
       ${!isDesktop?`<button class="btn bp" style="padding:6px 12px;font-size:.72rem" onclick="trOpenForm('dep')">+ Nouveau</button>`:""}
     </div>
@@ -4372,12 +4397,16 @@ function trRenderList() {
   const c = document.getElementById("tr-list-content");
   if(!c) return;
 
-  // ✅ FIX v5: filtres complets + numérotation des lignes
+  // ✅ FIX v6.0 : filtrer TOUJOURS par le mois affiché dans la Trésorerie (trCurYM)
+  // puis appliquer les filtres type/mode par-dessus. Aucune transaction ne doit être perdue.
   const curYM = trCurYM();
-  let filtered = [...trTransactions];
+  // Étape 1 : restreindre au mois de navigation de la Trésorerie
+  let filtered = trTransactions.filter(t => {
+    const txYM = t.yearMonth || (t.date || "").slice(0, 7);
+    return txYM === curYM;
+  });
 
-  // Filtre "mois courant" par défaut sur vue par mois (sauf si filtre actif = "all")
-  // On garde toutes les transactions et on les groupe par mois dans la vue
+  // Étape 2 : filtres type/mode
   if(trFilter === "rev")    filtered = filtered.filter(t => t.type === "rev");
   else if(trFilter === "dep")    filtered = filtered.filter(t => t.type === "dep");
   else if(trFilter === "wave")   filtered = filtered.filter(t => t.mode === "wave");
@@ -4475,17 +4504,88 @@ function trRenderDeltas() {
   if(!c) return;
   if(trDeltaHistory.length===0) { c.innerHTML=`<div class="tr-empty"><span class="tr-empty-ic">📊</span><div class="tr-empty-t">Aucune clôture effectuée</div></div>`; return; }
   c.innerHTML = '<div class="card"><div class="card-body">' +
-    trDeltaHistory.map(d=>{
+    trDeltaHistory.map((d,idx)=>{
       const pos = d.delta>=0;
-      return `<div class="tr-delta-item">
-        <div>
-          <div class="tr-delta-mois">${d.moisNom||""} ${d.annee}</div>
-          <div style="font-size:.63rem;color:var(--t3);margin-top:1px">${d.nbTransactions||0} txn · Rev: ${fmtCFA(d.totalRevenus)} · Dép: ${fmtCFA(d.totalDepenses)}</div>
-          <span class="tr-tag ${pos?"tr-tag-s":"tr-tag-d"}">${pos?"✅ Surplus":"🚨 Déficit"}</span>
+      const detailId = `tr-arch-detail-${d.yearMonth||idx}`;
+      return `<div class="tr-delta-item" style="flex-direction:column;align-items:stretch;gap:0">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0">
+          <div style="flex:1">
+            <div class="tr-delta-mois">${d.moisNom||""} ${d.annee}</div>
+            <div style="font-size:.63rem;color:var(--t3);margin-top:1px">${d.nbTransactions||0} txn · Rev: ${fmtCFA(d.totalRevenus)} · Dép: ${fmtCFA(d.totalDepenses)}</div>
+            <span class="tr-tag ${pos?"tr-tag-s":"tr-tag-d"}">${pos?"✅ Surplus":"🚨 Déficit"}</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <div class="tr-delta-val ${pos?"tr-delta-pos":"tr-delta-neg"}">${pos?"+":""}${fmtCFA(d.delta)}</div>
+            <button onclick="trToggleArchiveDetail('${d.yearMonth}','${detailId}')"
+              id="tr-arch-btn-${d.yearMonth}"
+              style="background:var(--brd);border:none;border-radius:6px;padding:4px 9px;font-size:.66rem;font-weight:700;cursor:pointer;color:var(--t2);transition:all .14s;white-space:nowrap">
+              🗂️ Voir
+            </button>
+          </div>
         </div>
-        <div class="tr-delta-val ${pos?"tr-delta-pos":"tr-delta-neg"}">${pos?"+":""}${fmtCFA(d.delta)}</div>
+        <div id="${detailId}" style="display:none;margin-top:6px;border-top:1px dashed var(--brd);padding-top:8px">
+          <div style="font-size:.63rem;color:var(--t3);text-align:center;padding:8px">Chargement…</div>
+        </div>
       </div>`;
     }).join("") + '</div></div>';
+}
+
+// ── Charger et afficher les transactions archivées d'un mois clôturé ──────
+function trToggleArchiveDetail(ym, detailId) {
+  const el  = document.getElementById(detailId);
+  const btn = document.getElementById("tr-arch-btn-" + ym);
+  if(!el) return;
+  const isOpen = el.style.display !== "none";
+  if(isOpen) {
+    el.style.display = "none";
+    if(btn) btn.textContent = "🗂️ Voir";
+    return;
+  }
+  el.style.display = "block";
+  if(btn) btn.textContent = "▲ Masquer";
+
+  // Charger les archives depuis Firebase
+  if(!currentUser || !fbDB) {
+    el.innerHTML = `<div style="font-size:.7rem;color:var(--red);padding:6px">❌ Connexion Firebase requise.</div>`;
+    return;
+  }
+  const archPath = `fseye/${currentUser.uid}/${TR_PATH.ARCHIVES}/${ym}`;
+  firebase.database().ref(archPath).once("value").then(snap => {
+    const raw  = snap.val() || {};
+    const txns = Object.entries(raw).map(([id, t]) => ({id, ...t}));
+    if(txns.length === 0) {
+      el.innerHTML = `<div style="font-size:.7rem;color:var(--t3);padding:6px;text-align:center">Aucune transaction archivée pour ce mois.</div>`;
+      return;
+    }
+    // Tri chronologique (date ASC)
+    txns.sort((a,b) => (a.date||"").localeCompare(b.date||""));
+    const rows = txns.map(t => {
+      const isRev   = t.type === "rev";
+      const bg      = isRev ? "rgba(26,107,60,.06)" : "rgba(204,51,51,.06)";
+      const col     = isRev ? "var(--green)" : "var(--red)";
+      const modeIc  = {wave:"📱",orange:"🟠",banque:"🏦",espece:"💵"}[t.mode] || "💳";
+      const dStr    = t.date ? (() => { const d=new Date(t.date+"T00:00:00"); return isNaN(d)?t.date:d.toLocaleDateString("fr-FR",{day:"2-digit",month:"short"}); })() : "—";
+      return `<div style="display:flex;align-items:center;gap:8px;padding:5px 7px;border-radius:7px;background:${bg};margin-bottom:3px;font-size:.72rem">
+        <span style="min-width:34px;color:var(--t3);font-weight:600">${dStr}</span>
+        <span style="flex:1;font-weight:700;color:var(--t1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.designation||"—")}</span>
+        <span style="color:var(--t3)">${modeIc}</span>
+        <span style="font-family:'JetBrains Mono',monospace;font-weight:800;color:${col};white-space:nowrap">${isRev?"+":"-"}${fmtCFA(t.montant)}</span>
+      </div>`;
+    }).join("");
+    const tRev = txns.filter(t=>t.type==="rev").reduce((s,t)=>s+t.montant,0);
+    const tDep = txns.filter(t=>t.type==="dep").reduce((s,t)=>s+t.montant,0);
+    el.innerHTML = `
+      <div style="margin-bottom:6px">${rows}</div>
+      <div style="display:flex;justify-content:space-between;padding:5px 8px;background:var(--brd);border-radius:7px;font-size:.66rem;font-weight:700">
+        <span>📋 ${txns.length} transaction${txns.length>1?"s":""}</span>
+        <span>
+          ${tRev>0?`<span style="color:var(--green)">+${fmtCFA(tRev)}</span>`:``}
+          ${tDep>0?`<span style="color:var(--red);margin-left:8px">-${fmtCFA(tDep)}</span>`:""}
+        </span>
+      </div>`;
+  }).catch(err => {
+    el.innerHTML = `<div style="font-size:.7rem;color:var(--red);padding:6px">❌ Erreur de chargement : ${esc(err.message)}</div>`;
+  });
 }
 
 // ──────────────────────────────────────────────────────────
