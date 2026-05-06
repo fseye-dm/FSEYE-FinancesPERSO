@@ -1061,7 +1061,11 @@ function pushToFirebase() {
     // Timeout silencieux — pas de toast d'alerte sur sync auto
   }, 10000);
 
-  ref.set({
+  // v7.0 FIX CRITIQUE : utiliser update() au lieu de set() pour ne PAS effacer
+  // les nœuds TR_Transactions, TR_Archives, TR_Deltas, TR_Agregats qui sont
+  // au même niveau que years/revs/comments/prefs sous fseye/{uid}.
+  // ref.set() remplaçait tout le nœud et détruisait les transactions Trésorerie.
+  ref.update({
     years: D,
     revs: revs,
     comments: comments,
@@ -4826,7 +4830,8 @@ function pushToFirebaseAsync() {
   return new Promise((resolve) => {
     if(!currentUser || !fbDB || typeof firebase === "undefined") { resolve(); return; }
     const ref = fbDB.ref("fseye/" + currentUser.uid);
-    ref.set({
+    // v7.0 FIX CRITIQUE : update() au lieu de set() — même raison que pushToFirebase()
+    ref.update({
       years: D, revs, comments, prefs,
       lastUpdated: firebase.database.ServerValue.TIMESTAMP
     }).then(resolve).catch(e => { console.warn("[syncTr] push error", e); resolve(); });
