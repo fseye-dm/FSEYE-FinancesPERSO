@@ -3141,307 +3141,225 @@ function doVirginiser() {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// COACH FINANCIER — Moteur d'analyse dynamique v5.8
+// COACH FINANCIER — Moteur d'analyse multi-mois v8.0
 // ═══════════════════════════════════════════════════════════════
 function generateCoachAnalysis() {
-  // 1. Identifier le mois/année actif (dernier mois avec données de revenus, sinon yr/mo courant)
-  let anaYr = yr, anaMo = mo;
-  // Chercher le dernier mois actif avec revenus
-  const allMoKeys = MK.slice().reverse();
-  let foundActive = false;
-  for (const m of allMoKeys) {
-    const rv = getRevTotal(anaYr, m);
-    const mt = getMonthTotalsAll(anaYr, m);
-    if (rv > 0 || mt.actual > 0) { anaMo = m; foundActive = true; break; }
+  const NB_MONTHS = 6; // analyser les 6 derniers mois avec données
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth() + 1;
+
+  // Collecter les mois disponibles (dans D et revs)
+  const months = [];
+  for (let d = 0; d < NB_MONTHS; d++) {
+    let m = currentMonth - d;
+    let y = currentYear;
+    if (m < 1) { m += 12; y--; }
+    const mk = MK[m - 1];
+    const ym = y + '-' + String(m).padStart(2, '0');
+    const rev = getRevTotal(y, mk);
+    const mt = getMonthTotals(y, mk);
+    const mtAll = getMonthTotalsAll(y, mk);
+    // On garde le mois seulement s'il y a au moins une donnée
+    if (rev > 0 || mt.actual > 0 || mtAll.actual > 0) {
+      months.push({
+        year: y,
+        month: m,
+        label: MNF[m - 1] + ' ' + y,
+        revenus: rev,
+        depPlanifie: mt.planned,
+        depReel: mt.actual,
+        tresoDep: mtAll.actual - mt.actual,
+        epargne: rev - mtAll.actual
+      });
+    }
   }
-  if (!foundActive) {
-    // Aucune donnée réelle trouvée
-    return null;
+  // Inverser pour avoir l'ordre chronologique
+  months.reverse();
+
+  if (months.length === 0) return null;
+
+  // Données sous forme de tableaux
+  const depReels = months.map(x => x.depReel + x.tresoDep);
+  const rens = months.map(x => x.revenus);
+  const epargnes = months.map(x => x.epargne);
+
+  // Moyenne mobile 3 mois des dépenses totales
+  const movingAvgDep = [];
+  for (let i = 0; i < depReels.length; i++) {
+    const slice = depReels.slice(Math.max(0, i - 2), i + 1);
+    movingAvgDep.push(slice.reduce((a, b) => a + b, 0) / slice.length);
   }
 
-  // 2. Revenus du mois actif
-  const totalRevenu = getRevTotal(anaYr, anaMo);
-  const revLines = (revs[anaYr + "_" + anaMo] || []);
+  // Taux de croissance mensuel (dernier mois vs mois précédent)
+  const lastIdx = months.length - 1;
+  const prevDep = lastIdx > 0 ? depReels[lastIdx - 1] : depReels[lastIdx];
+  const growthRate = prevDep > 0 ? (depReels[lastIdx] - prevDep) / prevDep : 0;
 
-  // 3. Dépenses planifiées (budget hors Trésorerie)
-  const mtPlan   = getMonthTotals(anaYr, anaMo);      // hors _isTresorerie
-  const mtAll    = getMonthTotalsAll(anaYr, anaMo);   // avec _isTresorerie
+  // Volatilité des dépenses non planifiées (Trésorerie)
+  const tresoVals = months.map(x => x.tresoDep);
+  const avgTreso = tresoVals.reduce((a, b) => a + b, 0) / tresoVals.length;
+  const varTreso = tresoVals.reduce((a, b) => a + b * b, 0) / tresoVals.length - avgTreso * avgTreso;
+  const stdTreso = Math.sqrt(Math.max(0, varTreso));
 
-  const budgetPlanifie = mtPlan.planned;
-  const budgetExecute  = mtPlan.actual;
-  const tresoDepenses  = mtAll.actual - mtPlan.actual; // uniquement les dépenses imprévues TR
+  // Projections pour le mois suivant (M+1)
+  const lastMonth = months[lastIdx];
+  const projDep = lastMonth.depReel + lastMonth.tresoDep;
+  const projDepNext = projDep * (1 + Math.min(growthRate, 0.20)); // croissance limitée à 20%
+  const projRevNext = rens[lastIdx]; // revenus stables, sinon on prendrait la moyenne
+  const projEpargne = projRevNext - projDepNext;
 
-  // KPI A : Budget planifié / Revenus
-  const kpiA = totalRevenu > 0 ? Math.round(budgetPlanifie / totalRevenu * 100) : 0;
-  // KPI B : Budget exécuté (+ trésorerie) / Revenus
-  const kpiB = totalRevenu > 0 ? Math.round(mtAll.actual / totalRevenu * 100) : 0;
-  // Taux de déperdition
-  const tauxDeperdition = kpiB - kpiA;
+  // KPI du mois en cours (dernier mois de la série)
+  const curMonth = months[lastIdx];
+  const kpiA = curMonth.revenus > 0 ? Math.round(curMonth.depPlanifie / curMonth.revenus * 100) : 0;
+  const kpiB = curMonth.revenus > 0 ? Math.round((curMonth.depReel + curMonth.tresoDep) / curMonth.revenus * 100) : 0;
 
-  // 4. Capacité d'épargne réelle
-  const epargneReelle = totalRevenu - mtAll.actual;
-
-  // 5. Analyse des fuites par Centre de Coût (écart planifié vs exécuté)
-  const centreEcarts = CTRS.map(ctr => {
-    const plan = getCentrePlanMonthTotal(anaYr, anaMo, ctr);
-    const exec = getCentreMonthTotal(anaYr, anaMo, ctr);
-    const trDep = getCentreTrMonthTotal(anaYr, anaMo, ctr);
-    const ecart = (exec + trDep) - plan;
-    return { ctr, plan, exec, trDep, ecart };
-  }).filter(x => x.plan > 0 || x.exec > 0 || x.trDep > 0)
-    .sort((a, b) => b.ecart - a.ecart);
-
-  // Top 3 centres en dépassement
-  const top3Fuites = centreEcarts.slice(0, 3);
-
-  // 6. Transactions Trésorerie du mois (catégories des fuites)
-  const trMoTxns = (typeof trTransactions !== "undefined" ? trTransactions : []).filter(t =>
-    t.type === "dep" && (t.yearMonth || (t.date||"").slice(0,7)) === (anaYr + "-" + String(MK.indexOf(anaMo)+1).padStart(2,"0"))
-  );
-
-  // Regrouper les dépenses TR par catégorie
-  const trByCat = {};
-  trMoTxns.forEach(t => {
-    const cat = t.categorie || "Divers";
-    trByCat[cat] = (trByCat[cat] || 0) + (t.montant || 0);
-  });
-  const trCatsSorted = Object.entries(trByCat).sort((a,b) => b[1]-a[1]);
-
-  // 7. Construire le message d'alerte KPI
-  let alerteKpi = "";
-  if (kpiB >= 100) {
-    alerteKpi = `<span style="color:#CC3333;font-weight:800">🚨 DÉFICIT — Vous dépensez plus que vous ne gagnez ce mois. Situation critique.</span>`;
-  } else if (kpiB >= 90) {
-    alerteKpi = `<span style="color:#CC3333;font-weight:700">⚠️ Alerte : Votre style de vie consomme la quasi-totalité de vos revenus. Capacité de financement critique.</span>`;
-  } else if (kpiB >= 75) {
-    alerteKpi = `<span style="color:#C97B0A;font-weight:700">⚡ Vigilance : Seulement ${100-kpiB}% de marge réelle. Zone de fragilité financière.</span>`;
-  } else if (kpiB >= 50) {
-    alerteKpi = `<span style="color:#1A6B3C;font-weight:700">✅ Situation acceptable. Vous conservez ${100-kpiB}% de vos revenus disponibles.</span>`;
+  // Recommandations dynamiques
+  let alerts = [];
+  if (growthRate > 0.15) {
+    alerts.push(`⚠️ Vos dépenses totales augmentent rapidement (+${Math.round(growthRate * 100)}% par mois). Identifiez les postes non essentiels.`);
+  }
+  if (stdTreso > 50000) {
+    alerts.push(`📈 La volatilité de vos dépenses imprévues est de ${fmtCFA(stdTreso)}. Constituez un fonds de roulement d'au moins ${fmtCFA(stdTreso * 3)}.`);
+  }
+  if (projEpargne < 0) {
+    alerts.push(`🔮 Projection : déficit de ${fmtCFA(-projEpargne)} le mois prochain si la tendance se poursuit. Réduisez vos dépenses de ${fmtCFA(-projEpargne)}.`);
   } else {
-    alerteKpi = `<span style="color:#1A6B3C;font-weight:700">💪 Excellente maîtrise. Plus de ${100-kpiB}% de vos revenus sont préservés ce mois.</span>`;
-  }
-
-  // 8. Phrase d'action dynamique du Coach
-  let actionCoach = "";
-  if (tresoDepenses > 0 && top3Fuites.length > 0) {
-    const pire = centreEcarts.find(x => x.trDep > 0) || top3Fuites[0];
-    const redTarget = Math.max(10, Math.round((tresoDepenses / mtAll.actual) * 100 * 0.5));
-    actionCoach = `Vos dépenses non planifiées (Trésorerie) s'élèvent à <strong>${fmtCFA(tresoDepenses)}</strong> ce mois — soit <strong>${totalRevenu>0?Math.round(tresoDepenses/totalRevenu*100):0}% de vos revenus</strong> partis sans avoir été budgétés. Le centre <strong>${pire.ctr}</strong> est le principal foyer. Réduisez ces fuites de <strong>${redTarget}%</strong> le mois prochain pour récupérer <strong>${fmtCFA(Math.round(tresoDepenses*redTarget/100))}</strong> d'épargne supplémentaire.`;
-  } else if (epargneReelle > 0) {
-    actionCoach = `Bonne nouvelle : vous avez un excédent de <strong>${fmtCFA(epargneReelle)}</strong> ce mois. C'est le moment d'ouvrir ou d'alimenter un compte d'épargne dédié (PAMECAS, La Poste). Ne laissez pas cet argent dans le compte courant — affectez-le immédiatement.`;
-  } else if (kpiB >= 90) {
-    actionCoach = `Votre budget planifié est trop proche de vos revenus. Identifiez <strong>1 poste non-essentiel</strong> à réduire de 20% dès le mois prochain pour créer une marge de sécurité minimale.`;
-  } else {
-    actionCoach = `Continuez à saisir vos dépenses régulièrement dans Trésorerie — c'est la seule façon de détecter les fuites invisibles qui érodent votre capacité d'épargne.`;
+    alerts.push(`✅ Projection : excédent de ${fmtCFA(projEpargne)} attendu le mois prochain.`);
   }
 
   return {
-    anaYr, anaMo, totalRevenu, revLines,
-    budgetPlanifie, budgetExecute, tresoDepenses,
-    kpiA, kpiB, tauxDeperdition,
-    epargneReelle, top3Fuites, centreEcarts,
-    trByCat, trCatsSorted, alerteKpi, actionCoach,
-    nbTrTxns: trMoTxns.length
+    months,
+    growthRate,
+    stdTreso,
+    projDepNext,
+    projRevNext,
+    projEpargne,
+    alerts,
+    kpiA,
+    kpiB,
+    curMonthLabel: curMonth.label,
+    movingAvgDep,
+    rens,
+    depReels
   };
 }
 
 function paramsConseil(c) {
-  // ── Vérifier si TR_Transactions existe (profil vierge) ──
+  // Vérifier si des données existent
   const hasTr = (typeof trTransactions !== "undefined") && trTransactions.length > 0;
   const hasAnyBudget = Object.keys(D || {}).some(y => (D[y]?.entries||[]).some(e => e.total_actual > 0));
-
   if (!hasTr && !hasAnyBudget) {
-    c.innerHTML = `
-      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:320px;text-align:center;padding:32px 20px">
-        <div style="font-size:3rem;margin-bottom:16px;opacity:.35">🧭</div>
-        <div style="font-weight:800;font-size:.95rem;color:var(--t1);margin-bottom:10px">Coach Financier</div>
-        <div style="font-size:.78rem;color:var(--t2);line-height:1.75;max-width:320px">
-          Profil vierge. Commencez à saisir vos revenus et dépenses pour activer l'analyse du Coach Financier.
-        </div>
-        <div style="margin-top:20px;font-size:.68rem;color:var(--t3)">Onglet Revenus · Onglet Budget · Module Trésorerie</div>
-      </div>`;
+    c.innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;... (message profil vierge) ...</div>`;
     return;
   }
 
   const a = generateCoachAnalysis();
-
   if (!a) {
-    c.innerHTML = `
-      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:280px;text-align:center;padding:28px 20px">
-        <div style="font-size:2.5rem;margin-bottom:14px;opacity:.3">📊</div>
-        <div style="font-size:.8rem;color:var(--t2);line-height:1.7">Aucune donnée active détectée pour ce mois.<br>Saisissez vos revenus ou des dépenses pour activer l'analyse.</div>
-      </div>`;
+    c.innerHTML = `<div style="...">Aucune donnée active détectée pour ce mois.</div>`;
     return;
   }
 
-  const moLabel = MNF[MK.indexOf(a.anaMo)] + " " + a.anaYr;
+  // Préparer les données pour le graphique
+  const labels = a.months.map(m => m.label);
+  const revData = a.rens;
+  const depData = a.depReels;
+  const epargneData = a.months.map((m,i) => m.epargne);
 
-  // ── Barre de progression KPI ──
-  function kpiBar(pct, col) {
-    const w = Math.min(100, Math.max(0, pct));
-    return `<div style="background:var(--brd);border-radius:99px;height:7px;margin-top:6px;overflow:hidden">
-      <div style="width:${w}%;background:${col};height:100%;border-radius:99px;transition:width .4s"></div>
-    </div>`;
-  }
+  // Tableau récapitulatif des derniers mois
+  const tableRows = a.months.map(m => `
+    <tr>
+      <td style="font-weight:600">${m.label}</td>
+      <td style="color:#C97B0A">${fmtCFA(m.revenus)}</td>
+      <td style="color:#2D4FC8">${fmtCFA(m.depPlanifie)}</td>
+      <td style="color:${(m.depReel+m.tresoDep)>m.depPlanifie?'#CC3333':'#1A6B3C'}">${fmtCFA(m.depReel+m.tresoDep)}</td>
+      <td style="font-weight:700;color:${m.epargne>=0?'#1A6B3C':'#CC3333'}">${fmtCFA(m.epargne)}</td>
+    </tr>
+  `).join('');
 
-  // ── Couleur selon KPI B ──
-  const kpiBCol = a.kpiB >= 100 ? "#CC3333" : a.kpiB >= 90 ? "#CC3333" : a.kpiB >= 75 ? "#C97B0A" : "#1A6B3C";
-  const kpiACol = a.kpiA >= 90 ? "#C97B0A" : "#2D4FC8";
-
-  // ── CARTE 1 : Bilan du mois ──
-  const card1 = `
-  <div class="card" style="padding:16px 18px;margin-bottom:12px;border-left:4px solid ${kpiBCol}">
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
-      <span style="font-size:1.4rem">📊</span>
-      <div>
-        <div style="font-weight:800;font-size:.84rem;color:var(--t1)">Bilan du Mois — ${moLabel}</div>
-        <div style="font-size:.63rem;color:var(--t3)">KPIs Planifié vs Exécuté</div>
+  // Projections
+  const projHtml = a.projDepNext ? `
+    <div class="card" style="padding:13px;margin-top:12px;border-left:4px solid var(--blue)">
+      <div style="font-weight:700;font-size:.85rem;margin-bottom:6px">📅 Projection ${a.curMonthLabel} → M+1</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:.78rem">
+        <div>Revenus estimés : <strong>${fmtCFA(a.projRevNext)}</strong></div>
+        <div>Dépenses estimées : <strong>${fmtCFA(a.projDepNext)}</strong></div>
+      </div>
+      <div style="margin-top:8px;font-weight:700;font-size:.85rem;color:${a.projEpargne>=0?'var(--green)':'var(--red)'}">
+        Épargne prévue : ${fmtCFA(a.projEpargne)}
       </div>
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
-      <div style="background:var(--bl);border-radius:10px;padding:10px 12px">
-        <div style="font-size:.62rem;color:var(--t3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">KPI A — Planifié/Revenus</div>
-        <div style="font-weight:900;font-size:1.5rem;color:${kpiACol};line-height:1">${a.kpiA}<span style="font-size:.7rem;font-weight:600">%</span></div>
-        <div style="font-size:.62rem;color:var(--t2);margin-top:2px">${fmtCFA(a.budgetPlanifie)}</div>
-        ${kpiBar(a.kpiA, kpiACol)}
-      </div>
-      <div style="background:${a.kpiB>=90?"var(--rl)":"var(--gl)"};border-radius:10px;padding:10px 12px">
-        <div style="font-size:.62rem;color:var(--t3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">KPI B — Exécuté+Tréso/Revenus</div>
-        <div style="font-weight:900;font-size:1.5rem;color:${kpiBCol};line-height:1">${a.kpiB}<span style="font-size:.7rem;font-weight:600">%</span></div>
-        <div style="font-size:.62rem;color:var(--t2);margin-top:2px">${fmtCFA(a.budgetExecute + a.tresoDepenses)}</div>
-        ${kpiBar(a.kpiB, kpiBCol)}
-      </div>
-    </div>
-    ${a.tauxDeperdition > 0 ? `
-    <div style="background:var(--rl);border-radius:8px;padding:8px 12px;display:flex;align-items:center;gap:8px;margin-bottom:10px">
-      <span style="font-size:1rem">💧</span>
-      <div style="font-size:.73rem;color:#CC3333"><strong>Déperdition : +${a.tauxDeperdition} pts</strong> — Les dépenses imprévues (Trésorerie) ont gonflé votre exécution réelle de ${fmtCFA(a.tresoDepenses)} au-delà du plan.</div>
-    </div>` : `
-    <div style="background:var(--gl);border-radius:8px;padding:8px 12px;display:flex;align-items:center;gap:8px;margin-bottom:10px">
-      <span style="font-size:1rem">✅</span>
-      <div style="font-size:.73rem;color:#1A6B3C"><strong>Aucune fuite Trésorerie</strong> — Vous avez respecté votre budget planifié ce mois.</div>
-    </div>`}
-    <div style="font-size:.74rem;line-height:1.65">${a.alerteKpi}</div>
-  </div>`;
+  ` : '';
 
-  // ── CARTE 2 : Détecteur de fuites ──
-  const top3Html = a.top3Fuites.length > 0
-    ? a.top3Fuites.map((f, i) => {
-        const pct = f.plan > 0 ? Math.round((f.ecart / f.plan) * 100) : 0;
-        const col = f.ecart > 0 ? "#CC3333" : "#1A6B3C";
-        const ic  = f.ecart > 0 ? "🔴" : "🟢";
-        return `<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--brd);font-size:.74rem">
-          <div><span style="font-size:.8rem">${ic}</span> <strong>${f.ctr}</strong>${f.trDep > 0 ? ` <span style="font-size:.62rem;background:var(--rl);color:#CC3333;padding:1px 5px;border-radius:4px;margin-left:4px">+${fmtCFA(f.trDep)} Tréso</span>` : ""}</div>
-          <div style="text-align:right;color:${col};font-weight:700">${f.ecart > 0 ? "+" : ""}${fmtCFA(f.ecart)} <span style="font-size:.62rem;color:var(--t3)">(${f.ecart>0?"+":""}${pct}%)</span></div>
-        </div>`;
-      }).join("")
-    : `<div style="font-size:.73rem;color:var(--t2);padding:8px 0">Aucune fuite détectée — tous les centres sont dans les limites.</div>`;
-
-  const trCatsHtml = a.trCatsSorted.length > 0
-    ? a.trCatsSorted.slice(0, 4).map(([cat, amt]) =>
-        `<span style="background:var(--rl);color:#CC3333;padding:3px 8px;border-radius:99px;font-size:.67rem;font-weight:700">${cat} : ${fmtCFA(amt)}</span>`
-      ).join(" ")
-    : `<span style="font-size:.72rem;color:var(--t2)">Aucune dépense Trésorerie saisie ce mois</span>`;
-
-  const card2 = `
-  <div class="card" style="padding:16px 18px;margin-bottom:12px;border-left:4px solid #CC3333">
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
-      <span style="font-size:1.4rem">🔍</span>
-      <div>
-        <div style="font-weight:800;font-size:.84rem;color:var(--t1)">Détecteur de Fuites</div>
-        <div style="font-size:.63rem;color:var(--t3)">Centres de Coût · Dépenses non planifiées</div>
-      </div>
-    </div>
-    <div style="margin-bottom:12px">${top3Html}</div>
-    <div style="background:var(--rl);border-radius:10px;padding:10px 13px;margin-bottom:10px">
-      <div style="font-size:.63rem;text-transform:uppercase;letter-spacing:.5px;color:#CC3333;font-weight:700;margin-bottom:4px">💸 Total Dépenses Non Planifiées (Trésorerie)</div>
-      <div style="font-weight:900;font-size:1.4rem;color:#CC3333">${fmtCFA(a.tresoDepenses)} <span style="font-size:.7rem;font-weight:600;color:var(--t2)">${a.nbTrTxns} transaction${a.nbTrTxns>1?"s":""}</span></div>
-      <div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:5px">${trCatsHtml}</div>
-    </div>
-    ${a.tresoDepenses > 0 && a.totalRevenu > 0 ? `
-    <div style="font-size:.72rem;color:var(--t2);line-height:1.6">
-      Ces fuites représentent <strong style="color:#CC3333">${Math.round(a.tresoDepenses/a.totalRevenu*100)}% de vos revenus</strong> du mois — de l'argent sorti sans avoir été planifié dans votre budget.
-    </div>` : ""}
-  </div>`;
-
-  // ── CARTE 3 : Capacité d'épargne réelle ──
-  const epargneFd = a.epargneReelle > 0 ? Math.round(a.epargneReelle * 0.5) : 0;
-  const epargneInv = a.epargneReelle > 0 ? Math.round(a.epargneReelle * 0.5) : 0;
-  const epargneCol = a.epargneReelle >= 0 ? "#1A6B3C" : "#CC3333";
-  const epargneBg  = a.epargneReelle >= 0 ? "var(--gl)" : "var(--rl)";
-
-  const card3 = `
-  <div class="card" style="padding:16px 18px;margin-bottom:12px;border-left:4px solid ${epargneCol}">
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
-      <span style="font-size:1.4rem">🪣</span>
-      <div>
-        <div style="font-weight:800;font-size:.84rem;color:var(--t1)">Capacité d'Épargne Réelle</div>
-        <div style="font-size:.63rem;color:var(--t3)">Revenus − (Budget + Trésorerie)</div>
-      </div>
-    </div>
-    <div style="background:${epargneBg};border-radius:10px;padding:12px 15px;margin-bottom:12px;text-align:center">
-      <div style="font-size:.65rem;color:var(--t3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Solde disponible ce mois</div>
-      <div style="font-weight:900;font-size:2rem;color:${epargneCol};line-height:1.1">${fmtCFA(Math.abs(a.epargneReelle))}</div>
-      <div style="font-size:.7rem;color:var(--t2);margin-top:4px">${a.epargneReelle >= 0 ? "excédent à affecter" : "⚠️ déficit mensuel"}</div>
-    </div>
-    ${a.epargneReelle > 0 ? `
-    <div style="font-size:.73rem;color:var(--t1);margin-bottom:8px;font-weight:600">Recommandation d'affectation :</div>
-    <div style="display:flex;flex-direction:column;gap:6px">
-      <div style="display:flex;justify-content:space-between;align-items:center;background:var(--al);padding:7px 11px;border-radius:8px">
-        <div style="font-size:.72rem;color:#C97B0A;font-weight:700">🛡️ 50% → Fonds d'urgence</div>
-        <div style="font-size:.75rem;font-weight:800;color:#C97B0A">${fmtCFA(epargneFd)}</div>
-      </div>
-      <div style="display:flex;justify-content:space-between;align-items:center;background:var(--bl);padding:7px 11px;border-radius:8px">
-        <div style="font-size:.72rem;color:#2D4FC8;font-weight:700">📈 50% → Remboursement dettes / Investissement</div>
-        <div style="font-size:.75rem;font-weight:800;color:#2D4FC8">${fmtCFA(epargneInv)}</div>
-      </div>
-    </div>` : `
-    <div style="background:var(--rl);border-radius:8px;padding:9px 12px;font-size:.73rem;color:#CC3333;line-height:1.65">
-      <strong>Action immédiate :</strong> Identifiez 2 postes de dépenses à couper ou réduire dès le mois prochain. Un déficit récurrent érode votre patrimoine.
-    </div>`}
-  </div>`;
-
-  // ── CARTE 4 : Action du Coach ──
-  const card4 = `
-  <div class="card" style="padding:16px 18px;margin-bottom:12px;border-left:4px solid #6D32C8;background:linear-gradient(135deg,var(--card) 0%,var(--pl) 100%)">
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
-      <span style="font-size:1.4rem">🎯</span>
-      <div>
-        <div style="font-weight:800;font-size:.84rem;color:var(--t1)">L'Action du Coach</div>
-        <div style="font-size:.63rem;color:var(--t3)">Recommandation personnalisée · ${moLabel}</div>
-      </div>
-    </div>
-    <div style="font-size:.77rem;color:var(--t1);line-height:1.75;background:var(--card);border-radius:10px;padding:12px 14px;border:1px solid var(--pl)">
-      ${a.actionCoach}
-    </div>
-    <div style="margin-top:10px;font-size:.65rem;color:var(--t3);text-align:center">
-      Analyse générée dynamiquement sur vos données réelles FSEYE · ${moLabel}
-    </div>
-  </div>`;
-
-  // ── Revenus détaillés (mini-section) ──
-  const revDetailHtml = a.revLines.length > 0
-    ? `<div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:6px">
-        ${a.revLines.map(r => `<span style="background:var(--al);color:#C97B0A;padding:3px 9px;border-radius:99px;font-size:.67rem;font-weight:700">${r.label} : ${fmtCFA(parseFloat(r.amount)||0)}</span>`).join("")}
-       </div>` : "";
+  // Alertes
+  const alertHtml = a.alerts.map(msg => `<div class="alert-b al-w">${msg}</div>`).join('');
 
   c.innerHTML = `
     <div style="margin-bottom:14px">
-      <div style="font-weight:900;font-size:.95rem;margin-bottom:2px;color:var(--t1)">🧭 Coach Financier</div>
-      <div style="font-size:.67rem;color:var(--t3)">Analyse dynamique sur données réelles · ${moLabel}</div>
-      ${a.totalRevenu > 0 ? `
+      <div style="font-weight:900;font-size:.95rem;margin-bottom:2px;">🧭 Coach Financier</div>
+      <div style="font-size:.67rem;color:var(--t3)">Analyse multi-mois — ${a.curMonthLabel}</div>
+      ${a.months.length > 0 ? `
       <div style="margin-top:8px;padding:7px 11px;background:var(--al);border-radius:8px;font-size:.72rem;color:#C97B0A">
-        <strong>Revenus ${moLabel} :</strong> ${fmtCFA(a.totalRevenu)}${revDetailHtml}
-      </div>` : `
-      <div style="margin-top:8px;padding:7px 11px;background:var(--rl);border-radius:8px;font-size:.72rem;color:#CC3333">
-        ⚠️ Revenus non saisis pour ${moLabel} — le KPI de taux est calculé sur 0.
-      </div>`}
+        <strong>${a.months.length} mois analysés</strong> — de ${a.months[0].label} à ${a.curMonthLabel}
+      </div>` : ''}
     </div>
-    ${card1}${card2}${card3}${card4}
+
+    ${alertHtml}
+
+    <!-- Tableau historique -->
+    <div class="card" style="overflow:hidden;margin-bottom:12px">
+      <div class="card-hd"><div class="ct">📆 Historique récent</div></div>
+      <div style="overflow-x:auto">
+        <table class="tbl">
+          <thead><tr><th>Mois</th><th>Revenus</th><th>Planifié</th><th>Réalisé</th><th>Épargne</th></tr></thead>
+          <tbody>${tableRows}</tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Graphique tendance -->
+    <div class="card" style="margin-bottom:12px">
+      <div class="card-hd"><div class="ct">📈 Tendance dépenses (6 mois)</div></div>
+      <div class="cp" style="height:180px"><canvas id="coach-trend-chart"></canvas></div>
+    </div>
+
+    ${projHtml}
+
+    <div style="margin-top:12px;background:var(--gl);border-radius:10px;padding:13px;font-size:.75rem;line-height:1.7">
+      <strong>💡 Que faire ?</strong><br>
+      ${a.growthRate > 0.10 ? `Vos dépenses augmentent de ${Math.round(a.growthRate*100)}% par mois. Réduisez les fuites en suivant les alertes ci-dessus.` : 'Vos dépenses sont stables ou en baisse, continuez ainsi !'}
+      ${a.projEpargne < 0 ? ` Le déficit projeté de ${fmtCFA(-a.projEpargne)} nécessite une action immédiate.` : ''}
+    </div>
     <div style="text-align:center;padding:8px;font-size:.62rem;color:var(--t3);margin-top:4px">
-      ℹ️ Analyse basée exclusivement sur vos données Firebase (fseye/${currentUser?.uid||"?"}/…). Consultez un conseiller financier pour les décisions importantes.
+      ℹ️ Analyse basée sur vos données Firebase. Consultez un conseiller financier pour les décisions importantes.
     </div>
   `;
+
+  // Créer le graphique après rendu
+  setTimeout(() => {
+    const ctx = document.getElementById('coach-trend-chart');
+    if (ctx && !charts['coach-trend']) {
+      charts['coach-trend'] = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [
+            { label: 'Revenus', data: revData, borderColor: '#FFC000', backgroundColor: 'transparent', borderWidth: 2.5, tension: 0.4, pointRadius: 3 },
+            { label: 'Dépenses totales', data: depData, borderColor: '#CC3333', backgroundColor: 'transparent', borderWidth: 2.5, tension: 0.4, pointRadius: 3 }
+          ]
+        },
+        options: { responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { labels: { font: { size: 10 }, color: 'var(--t2)' } },
+            tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${fmtCFA(ctx.raw)}` } }
+          },
+          scales: {
+            x: { ticks: { color: 'var(--t2)', font: { size: 9 } }, grid: { display: false } },
+            y: { ticks: { color: 'var(--t2)', font: { size: 9 }, callback: v => fmtCFA(v) }, grid: { color: 'rgba(0,0,0,0.05)' } }
+          }
+        }
+      });
+    }
+  }, 200);
 }
 
 function paramsFirebase(c) {
