@@ -8,7 +8,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="FSEYE">
 <meta name="theme-color" content="#1B3A2D">
-<title>FSEYE · Budget Familial v7.1</title>
+<title>FSEYE · Budget Familial v7.2</title>
 <link id="pwa-manifest-link" rel="manifest">
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
@@ -1020,6 +1020,11 @@ function startSync(uid) {
     } else {
       // First time — initialiser les catégories par défaut + push
       prefs.cats = DEFAULT_CATS_LIST.map(c => ({id:c.id, ic:c.ic, name:c.name}));
+      // FIX: Écriture non-destructive — désactiver l'auto-peuplement DEFAULT_REV_LINES
+      // pour les profils secondaires (ex: Mariama) qui ne doivent pas hériter du salaire FSEYE
+      if (currentUser && currentUser.email !== "fseye2018@gmail.com") {
+        prefs.useDefaultRevLines = false;
+      }
       _ensureYearRange();
       pushToFirebase();
     }
@@ -1854,7 +1859,11 @@ function renderFluxTresorerie(c) {
 function renderRevBloc(c) {
   const k = yr+"_"+mo;
   if(!revs[k] || revs[k].length === 0) {
-    revs[k] = DEFAULT_REV_LINES.map(r => ({...r}));
+    // FIX: Écriture non-destructive — n'auto-peupler avec DEFAULT_REV_LINES que si le profil le demande
+    // (prefs.useDefaultRevLines non défini = true par défaut pour rétrocompat compte FSEYE principal)
+    // Après virginisation ou pour un nouveau profil secondaire, useDefaultRevLines = false → liste vide
+    const useDefaults = prefs.useDefaultRevLines !== false;
+    revs[k] = useDefaults ? DEFAULT_REV_LINES.map(r => ({...r})) : [];
   }
   // FIX v7.1 : suppression de l'injection automatique CONTRIBUTION DES FRÈRES
   // (les revenus doivent refléter uniquement ce que l'utilisateur saisit)
@@ -2558,7 +2567,16 @@ function paramsCats(c) {
   </div>`;
 }
 
-function addCat() { prefs.cats=[...(prefs.cats||DEFAULT_CATS_LIST),{id:"CAT"+Date.now(),ic:"📌",name:"Nouvelle",col:"#888"}]; renderParamsTab(); }
+function addCat() {
+  // FIX: Écriture non-destructive — initialiser prefs.cats si null avant d'ajouter
+  if (!prefs.cats || prefs.cats.length === 0) {
+    prefs.cats = DEFAULT_CATS_LIST.map(c => ({id:c.id, ic:c.ic, name:c.name}));
+  }
+  prefs.cats = [...prefs.cats, {id:"CAT"+Date.now(), ic:"📌", name:"Nouvelle", col:"#888"}];
+  // FIX: Écriture non-destructive — scheduleSync immédiat pour ancrer la modif avant toute mise à jour Firebase
+  scheduleSync();
+  renderParamsTab();
+}
 function saveCats() { scheduleSync(); trLoadCategories(); toast("Catégories sauvegardées ✓"); }
 
 
@@ -3108,7 +3126,10 @@ function doVirginiser() {
     centreNames:    {},
     displayName:    newName,
     tagline:        newTag,
-    nonEssentialCats: ["LOISIRS","FACULTATIVE"]
+    nonEssentialCats: ["LOISIRS","FACULTATIVE"],
+    // FIX: Écriture non-destructive — empêcher l'auto-peuplement des lignes de revenus FSEYE
+    // Mariama repart de zéro, aucune ligne "Salaire Principal" ne doit réapparaître
+    useDefaultRevLines: false
   };
   yr = curYr;
   mo = MK[new Date().getMonth()];
@@ -3127,13 +3148,25 @@ function doVirginiser() {
   // Effacer aussi les transactions Trésorerie Firebase (supprime tout le nœud du profil)
   if(currentUser && fbDB) {
     const uid = currentUser.uid;
-    // Supprimer le nœud racine du profil — supprime automatiquement tous les sous-nœuds
-    // (TR_Transactions, TR_Archives, TR_Agregats, TR_Deltas, years, prefs, etc.)
-    fbDB.ref("fseye/" + uid).remove().catch(e => console.warn("[Virginiser] Remove error:", e.message));
+    // FIX: Écriture non-destructive — remove() puis set() (pas update()) pour garantir
+    // qu'AUCUNE ancienne donnée ne subsiste sous fseye/{uid}
+    const cleanPayload = {
+      years:       D,
+      revs:        revs,
+      comments:    comments,
+      prefs:       prefs,
+      lastUpdated: firebase.database.ServerValue.TIMESTAMP
+    };
+    fbDB.ref("fseye/" + uid).remove()
+      .then(() => fbDB.ref("fseye/" + uid).set(cleanPayload))
+      .then(() => { updateSyncBadge("connected"); })
+      .catch(e => {
+        toast("❌ Erreur virginisation Firebase : " + e.message);
+        console.error("[Virginiser] Firebase error:", e);
+      });
+    // Ne PAS appeler scheduleSync() ici : évite un update() qui pourrait s'intercaler
+    // entre le remove() et le set() et créer des nœuds résiduels
   }
-
-  // Repousser les données vierges sur Firebase
-  scheduleSync();
 
   // Rafraîchir l'interface
   goTo("dashboard");
@@ -3249,14 +3282,50 @@ function paramsConseil(c) {
   // Vérifier si des données existent
   const hasTr = (typeof trTransactions !== "undefined") && trTransactions.length > 0;
   const hasAnyBudget = Object.keys(D || {}).some(y => (D[y]?.entries||[]).some(e => e.total_actual > 0));
+  // FIX: Écriture non-destructive — afficher message adapté si profil vierge (pas de données du tout)
   if (!hasTr && !hasAnyBudget) {
-    c.innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;... (message profil vierge) ...</div>`;
+    c.innerHTML = `
+      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;
+                  padding:40px 20px;text-align:center;background:var(--card);border-radius:14px;
+                  border:1px solid var(--brd)">
+        <div style="font-size:2.5rem;margin-bottom:12px">💡</div>
+        <div style="font-weight:800;font-size:.92rem;margin-bottom:8px;color:var(--t1)">
+          Pas encore de données
+        </div>
+        <div style="font-size:.78rem;color:var(--t2);line-height:1.7;max-width:320px">
+          Saisissez quelques mois de dépenses et de revenus pour que le Coach Financier
+          puisse vous proposer une analyse personnalisée.
+        </div>
+        <div style="margin-top:16px;padding:10px 14px;background:var(--gl);border-radius:9px;
+                    font-size:.73rem;color:var(--green);font-weight:600">
+          ✅ L'analyse s'active automatiquement dès 2 mois de données
+        </div>
+      </div>`;
     return;
   }
 
   const a = generateCoachAnalysis();
-  if (!a) {
-    c.innerHTML = `<div style="...">Aucune donnée active détectée pour ce mois.</div>`;
+  // FIX: Écriture non-destructive — vérifier le minimum de 2 mois requis pour une analyse fiable
+  if (!a || a.months.length < 2) {
+    const moisDispo = a ? a.months.length : 0;
+    c.innerHTML = `
+      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;
+                  padding:40px 20px;text-align:center;background:var(--card);border-radius:14px;
+                  border:1px solid var(--brd)">
+        <div style="font-size:2.5rem;margin-bottom:12px">📊</div>
+        <div style="font-weight:800;font-size:.92rem;margin-bottom:8px;color:var(--t1)">
+          Données insuffisantes pour l'analyse
+        </div>
+        <div style="font-size:.78rem;color:var(--t2);line-height:1.7;max-width:320px">
+          ${moisDispo === 1
+            ? "1 mois de données détecté. Il en faut au minimum 2 pour calculer des tendances et projections fiables."
+            : "Aucun mois avec données complètes n'a été détecté. Saisissez quelques mois de dépenses et revenus."}
+        </div>
+        <div style="margin-top:16px;padding:10px 14px;background:var(--al);border-radius:9px;
+                    font-size:.73rem;color:var(--amber);font-weight:600">
+          ⏳ Revenez quand vous aurez saisi au moins 2 mois de données
+        </div>
+      </div>`;
     return;
   }
 
@@ -3515,8 +3584,18 @@ function resetIdleTimer() {
 }
 
 function initIdleWatcher() {
-  const EVENTS = ["mousemove","mousedown","keydown","scroll","touchstart","click"];
-  EVENTS.forEach(e => window.addEventListener(e, resetIdleTimer, {passive:true}));
+  // FIX: Écriture non-destructive — liste étendue + capture:true pour attraper
+  // TOUS les événements même si stopPropagation est appelé quelque part
+  // Couvre : souris, clavier, tactile, scroll, inputs, saisie IME mobile
+  const EVENTS = [
+    "mousemove","mousedown","mouseup","click",
+    "keydown","keyup","input","change",
+    "scroll","wheel",
+    "touchstart","touchmove","touchend",
+    "pointerdown","pointermove",
+    "focus","focusin","selectionchange"
+  ];
+  EVENTS.forEach(e => window.addEventListener(e, resetIdleTimer, {passive:true, capture:true}));
   resetIdleTimer();
 }
 
