@@ -8,7 +8,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="FSEYE">
 <meta name="theme-color" content="#1B3A2D">
-<title>FSEYE · Budget Familial v7.0</title>
+<title>FSEYE · Budget Familial v7.1</title>
 <link id="pwa-manifest-link" rel="manifest">
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
@@ -757,8 +757,8 @@ let D        = JSON.parse(JSON.stringify(INIT_DATA));
 // ── Revenus prédéfinis par défaut (modifiables)
 const DEFAULT_REV_LINES = [{"label": "Salaire Principal", "amount": 2178000}, {"label": "COTISATIONS MENSUELLES SORA", "amount": 125000}, {"label": "COTISATIONS MENSUELLES BIRA", "amount": 50000}];
 
-// Revenus CONTRIBUTION DES FRERES injectés dans revs au chargement (2021-2026)
-const CONTRIB_FRERES_REVS = {"2021_mai": 160000, "2021_jun": 100000, "2021_jul": 160000, "2021_aou": 310000, "2021_oct": 50000, "2021_nov": 50000, "2021_dec": 100000, "2022_jan": 50000, "2022_fev": 130000, "2022_mar": 130000, "2022_mai": 100000, "2022_jun": 130000, "2022_jul": 160000, "2022_aou": 130000, "2022_sep": 130000, "2022_oct": 130000, "2022_nov": 130000, "2022_dec": 130000, "2023_jan": 130000, "2023_fev": 170000, "2023_mar": 125000, "2023_avr": 175000, "2023_mai": 175000, "2023_jun": 175000, "2023_jul": 175000, "2023_aou": 175000, "2023_sep": 175000, "2023_oct": 175000, "2023_nov": 175000, "2023_dec": 175000, "2024_jan": 170000, "2024_fev": 170000, "2024_mar": 170000, "2024_avr": 170000, "2024_mai": 170000, "2024_jun": 175000, "2024_jul": 175000, "2024_aou": 175000, "2024_sep": 175000, "2024_oct": 175000, "2024_nov": 175000, "2024_dec": 175000, "2025_jan": 175000, "2025_fev": 175000, "2025_mar": 175000, "2025_avr": 175000, "2025_mai": 315000, "2025_jun": 175000, "2025_jul": 175000, "2025_aou": 200000, "2025_sep": 200000, "2025_oct": 200000, "2025_nov": 200000, "2025_dec": 200000, "2026_jan": 200000, "2026_fev": 200000, "2026_mar": 200000, "2026_avr": 200000, "2026_mai": 200000, "2026_jun": 200000, "2026_jul": 175000, "2026_aou": 200000, "2026_sep": 200000, "2026_oct": 200000, "2026_nov": 200000, "2026_dec": 200000};
+// FIX v7.1 : CONTRIB_FRERES_REVS supprimée — l'injection automatique dans renderRevBloc
+// causait l'apparition permanente de "CONTRIBUTION DES FRÈRES" dans les revenus.
 
 let revs     = {};
 let comments = {};
@@ -935,10 +935,15 @@ function doLogout() {
     window._globalCleanup = [];
   }
 
-  // 3. Nettoyer les listeners Trésorerie (transactions + connectivité)
+  // 3. Nettoyer les listeners Trésorerie (transactions + delta + connectivité)
   if(typeof trListeners !== "undefined" && trListeners.length) {
     trListeners.forEach(u => { try { u(); } catch(e){} });
     trListeners.length = 0;
+  }
+  // FIX v7.1 : nettoyer aussi les listeners delta séparés
+  if(typeof _trDeltaListeners !== "undefined" && _trDeltaListeners.length) {
+    _trDeltaListeners.forEach(u => { try { u(); } catch(e){} });
+    _trDeltaListeners.length = 0;
   }
   if(typeof _trConnListener === "function") {
     try { _trConnListener(); } catch(e){}
@@ -1008,9 +1013,14 @@ function startSync(uid) {
         // Sauvegarder immédiatement les catégories par défaut
         setTimeout(pushToFirebase, 500);
       }
+      // FIX v7.1 : auto-créer années manquantes (2027, 2028…) sans écraser les données
+      const _prevYrCount = Object.keys(D).length;
+      _ensureYearRange();
+      if(Object.keys(D).length > _prevYrCount) setTimeout(pushToFirebase, 800);
     } else {
       // First time — initialiser les catégories par défaut + push
       prefs.cats = DEFAULT_CATS_LIST.map(c => ({id:c.id, ic:c.ic, name:c.name}));
+      _ensureYearRange();
       pushToFirebase();
     }
     // Ne pas re-rendre si un champ de saisie est actif
@@ -1039,15 +1049,17 @@ document.addEventListener("focusin",  function(e) {
 });
 document.addEventListener("focusout", function(e) {
   if(e.target && (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA" || e.target.tagName === "SELECT")) {
-    // Délai de 150ms pour laisser le focus passer d'un champ à un autre
+    // FIX v7.1 : délai 500ms (au lieu de 150ms) — stabilise la saisie mobile
     setTimeout(function() {
       const ae = document.activeElement;
       _inputFocused = !!(ae && (ae.tagName === "INPUT" || ae.tagName === "TEXTAREA" || ae.tagName === "SELECT"));
       if(!_inputFocused && _pendingRefresh) {
         _pendingRefresh = false;
         refreshActivePage();
+        // FIX v7.1 : aussi rafraîchir les vues Trésorerie (transactions/dashboard)
+        if(typeof _trRefreshAllViews === "function") _trRefreshAllViews();
       }
-    }, 150);
+    }, 500);
   }
 });
 
@@ -1210,6 +1222,9 @@ function selMonth(m) {
   mo = m;
   sessionStorage.setItem("fseye_mo", mo); // Persistance F5
   document.querySelectorAll(".mp").forEach((p,i) => p.classList.toggle("on", MK[i]===mo));
+  // ── FIX v7.1 : Sync Trésorerie avec le mois global ──
+  const _moIdx = MK.indexOf(m);
+  if(_moIdx >= 0) { trMonth = _moIdx + 1; trYear = parseInt(yr) || trYear; }
   refreshActivePage();
 }
 
@@ -1220,6 +1235,8 @@ function changeYr(d) {
     yr = yrs[ni];
     sessionStorage.setItem("fseye_yr", yr); // Persistance F5
     document.getElementById("yr-lbl").textContent = yr;
+    // ── FIX v7.1 : Sync trYear ──
+    trYear = parseInt(yr) || trYear;
     refreshActivePage();
   }
 }
@@ -1304,6 +1321,12 @@ function setTheme(t, save=true) {
 }
 
 function toast(msg, dur=3000) {
+  // FIX v7.1 : sur mobile, supprimer les toasts de succès (✅ 💚 ☁ 💾 📥) — garder uniquement ❌ ⚠️ ⏳
+  const isMobile = window.innerWidth < 768;
+  if(isMobile) {
+    const isError = msg.startsWith("❌") || msg.startsWith("⚠️") || msg.startsWith("⏳");
+    if(!isError) return;
+  }
   const area = document.getElementById("toast-area");
   const el   = document.createElement("div");
   el.className  = "toast";
@@ -1833,12 +1856,8 @@ function renderRevBloc(c) {
   if(!revs[k] || revs[k].length === 0) {
     revs[k] = DEFAULT_REV_LINES.map(r => ({...r}));
   }
-  // Note : CONTRIB_FRERES_REVS utilise des clés en minuscules (ex: "2026_mai")
-  // alors que k = yr+"_"+mo avec mo en MAJUSCULES (ex: "2026_MAI") → toLowerCase() requis
-  const _cfKey = k.toLowerCase();
-  if(CONTRIB_FRERES_REVS[_cfKey] && !revs[k].find(r=>r.label==="CONTRIBUTION DES FRÈRES")) {
-    revs[k].push({label:"CONTRIBUTION DES FRÈRES", amount: CONTRIB_FRERES_REVS[_cfKey]});
-  }
+  // FIX v7.1 : suppression de l'injection automatique CONTRIBUTION DES FRÈRES
+  // (les revenus doivent refléter uniquement ce que l'utilisateur saisit)
   const rows = revs[k];
   const tot  = rows.reduce((s,r)=>s+(parseFloat(r.amount)||0),0);
   c.innerHTML = `<div class="card" style="overflow:hidden">
@@ -3714,7 +3733,8 @@ let trSearchQuery  = "";        // v5.9 — filtre texte live (barre de recherch
 let trFormType     = "rev";
 let trSelMode      = "wave";
 let trSubPage      = "dashboard";
-let trListeners    = [];        // listeners transaction/delta (nettoyés à chaque resouscription)
+let trListeners    = [];        // listeners transaction uniquement (nettoyés à chaque resouscription)
+let _trDeltaListeners = [];    // FIX v7.1 : listeners delta séparés (ne jamais tuer avec trSubscribeTransactions)
 let _trConnListener = null;     // v7.0 — listener connectivité séparé (ne doit JAMAIS être tué par trSubscribeTransactions)
 let trFbOk         = false;
 
@@ -3760,6 +3780,9 @@ function trInit() {
         // Si on revient en ligne et que le listener a échoué, se réabonner
         if(!wasOk && trListeners.length === 0) {
           trSubscribeTransactions();
+        }
+        // FIX v7.1 : re-souscrire aux deltas si listener absent (séparé de trListeners)
+        if(!wasOk && _trDeltaListeners.length === 0) {
           trSubscribeDeltas();
         }
       }
@@ -3837,8 +3860,8 @@ function trSubscribeTransactions() {
   if(!currentUser) return;
   if(typeof firebase === "undefined" || !fbDB) return;
 
-  // v7.0 FIX : nettoyer SEULEMENT les listeners de données (transaction/delta),
-  // PAS le listener de connectivité (_trConnListener) qui est géré séparément dans trInit().
+  // v7.0 FIX : nettoyer SEULEMENT les listeners de données (transaction),
+  // PAS le listener de connectivité (_trConnListener) ni les deltas (_trDeltaListeners).
   trListeners.forEach(u => { try { u(); } catch(e){} });
   trListeners = [];
 
@@ -3938,6 +3961,9 @@ function _trRefreshAllViews() {
 function trSubscribeDeltas() {
   if(!currentUser) return;
   if(typeof firebase === "undefined" || !fbDB) return;
+  // FIX v7.1 : utiliser _trDeltaListeners séparé pour éviter le nettoyage par trSubscribeTransactions
+  _trDeltaListeners.forEach(u => { try { u(); } catch(e){} });
+  _trDeltaListeners = [];
   const path = `fseye/${currentUser.uid}/${TR_PATH.DELTAS}/mois`;
   let ref;
   try { ref = firebase.database().ref(path); } catch(e) { return; }
@@ -3945,8 +3971,8 @@ function trSubscribeDeltas() {
   const unsub = ref.on("value", snap => {
     const data = snap.val() || {};
     trDeltaHistory = Object.entries(data).map(([id, val]) => ({ id, ...val }));
-    // Trier par yearMonth décroissant
-    trDeltaHistory.sort((a,b) => b.yearMonth.localeCompare(a.yearMonth));
+    // Trier par yearMonth décroissant (sécurité : vérifier le champ)
+    trDeltaHistory.sort((a,b) => (b.yearMonth||"").localeCompare(a.yearMonth||""));
     if(trSubPage === "dashboard") trRenderChart2();
     if(trSubPage === "historique") trRenderDeltas();
   }, err => {
@@ -3955,7 +3981,7 @@ function trSubscribeDeltas() {
       setTimeout(() => { if(currentUser && trFbOk) trSubscribeDeltas(); }, 5000);
     }
   });
-  trListeners.push(() => { try { ref.off("value", unsub); } catch(e){} });
+  _trDeltaListeners.push(() => { try { ref.off("value", unsub); } catch(e){} });
 }
 
 function trLoadCategories() {
@@ -4013,6 +4039,8 @@ function trDefaultCats() {
 function trRenderPage() {
   if(!currentUser) { trOfflineQueue=[]; }
   if(currentUser && !trListeners.length) trInit();
+  // FIX v7.1 : recharger les catégories à chaque affichage (synchronisation avec Paramètres)
+  if(currentUser) trLoadCategories();
   trLoadOfflineQueue();
 
   const pg = document.getElementById("pg-tresorerie");
@@ -4211,6 +4239,14 @@ function trChangeMonth(d) {
   else if(trMonth + d > 12) { trYear++; trMonth = 1; }
   else                       { trMonth += d; }
   trSearchQuery = ""; // v5.9 — réinitialiser la recherche au changement de mois
+  // ── FIX v7.1 : Sync avec l'état global yr/mo (pills + sélecteur de mois) ──
+  yr = String(trYear);
+  mo = MK[trMonth - 1];
+  sessionStorage.setItem("fseye_yr", yr);
+  sessionStorage.setItem("fseye_mo", mo);
+  const yrLbl = document.getElementById("yr-lbl");
+  if(yrLbl) yrLbl.textContent = yr;
+  document.querySelectorAll(".mp").forEach((p,i) => p.classList.toggle("on", MK[i]===mo));
   // Simple re-render avec filtre côté client
   trRenderPage();
 }
