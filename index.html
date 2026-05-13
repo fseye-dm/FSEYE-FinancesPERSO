@@ -979,37 +979,56 @@ async function doReset() {
   }
 }
 
-function doLogout() {
-  if(!confirm("Se déconnecter ?")) return;
-
-  // 1. Annuler le timer d'inactivité
-  if(typeof _idleTimer !== "undefined") clearTimeout(_idleTimer);
-
-  // 2. Nettoyer les listeners globaux (connected, etc.)
+// ── Nettoyage centralisé de TOUS les listeners Firebase ─────────
+// Appelé avant firebase.auth().signOut() pour éviter les permission_denied
+// dans les callbacks des listeners encore actifs.
+function _cleanupAllListeners() {
+  // Listeners globaux (.info/connected etc.)
   if(window._globalCleanup) {
     window._globalCleanup.forEach(fn => { try { fn(); } catch(e){} });
     window._globalCleanup = [];
   }
-
-  // 3. Nettoyer les listeners Trésorerie (transactions + delta + connectivité)
+  // Trésorerie — transactions
   if(typeof trListeners !== "undefined" && trListeners.length) {
     trListeners.forEach(u => { try { u(); } catch(e){} });
     trListeners.length = 0;
   }
-  // FIX v7.1 : nettoyer aussi les listeners delta séparés
+  // Trésorerie — deltas
   if(typeof _trDeltaListeners !== "undefined" && _trDeltaListeners.length) {
     _trDeltaListeners.forEach(u => { try { u(); } catch(e){} });
     _trDeltaListeners.length = 0;
   }
+  // Trésorerie — connectivité
   if(typeof _trConnListener === "function") {
-    try { _trConnListener(); } catch(e){}
-    _trConnListener = null;
+    try { _trConnListener(); } catch(e){} _trConnListener = null;
   }
+  // Épargne
+  if(typeof epListeners !== "undefined" && epListeners.length) {
+    epListeners.forEach(u => { try { u(); } catch(e){} });
+    epListeners.length = 0;
+  }
+  // Listener principal de données (years/revs/prefs)
+  if(typeof fbRef !== "undefined" && fbRef) { try { fbRef.off(); } catch(e){} fbRef = null; }
+  // État Épargne
+  if(typeof epOps !== "undefined")       epOps = [];
+  if(typeof _epInitDone !== "undefined") _epInitDone = false;
+  if(typeof _epChart !== "undefined" && _epChart) { try { _epChart.destroy(); } catch(e){} _epChart = null; }
+  // Flags
+  if(typeof _trPermDenied !== "undefined") _trPermDenied = false;
+  if(typeof trFbOk !== "undefined")        trFbOk = false;
+}
 
-  // 4. Nettoyer le listener principal de données
-  if(fbRef) { try { fbRef.off(); } catch(e){} fbRef = null; }
+function doLogout() {
+  if(!confirm("Se déconnecter ?")) return;
 
-  // 5. Effacer la session F5 (page active, année, mois)
+  // 1. Arrêter le timer d'inactivité
+  stopIdleTimer();
+
+  // 2. Détacher TOUS les listeners Firebase AVANT signOut
+  //    (évite les permission_denied dans les callbacks)
+  _cleanupAllListeners();
+
+  // 3. Effacer la session F5 (page active, année, mois)
   sessionStorage.removeItem("fseye_page");
   sessionStorage.removeItem("fseye_yr");
   sessionStorage.removeItem("fseye_mo");
@@ -1043,6 +1062,10 @@ function startSync(uid) {
     if(data) {
       if(data.years) {
         D = data.years;
+        // FIX : Firebase supprime les tableaux vides → remettre entries:[] si manquant
+        Object.values(D).forEach(yd => {
+          if(yd && !Array.isArray(yd.entries)) yd.entries = [];
+        });
         // ── Migration v4→v5.2 : convertir e.note (global) → e.notes[???] ──
         // On ne peut pas savoir QUEL mois l'ancienne note concernait,
         // donc on la supprime proprement pour éviter qu'elle s'affiche partout.
@@ -1090,6 +1113,9 @@ function startSync(uid) {
     } else {
       refreshActivePage();
     }
+    // FIX V01 : réinitialiser le timer après chaque sync Firebase
+    // (prefs.idleDelay peut avoir changé)
+    if(_idleActive) { clearTimeout(_idleTimer); clearTimeout(_idleThrottle); _idleThrottle=null; startIdleTimer(); }
   });
 
   updateSyncBadge("connected");
@@ -1201,6 +1227,7 @@ function _ensureYearRange() {
   const nowY = new Date().getFullYear();
   const maxY = nowY + 2;
   const firstY = 2024;
+  // Créer les années manquantes
   for(let y = firstY; y <= maxY; y++) {
     const yk = String(y);
     if(!D[yk]) {
@@ -1211,6 +1238,18 @@ function _ensureYearRange() {
       MK.forEach(m => { D[yk].monthly_totals[m] = {planned:0, actual:0}; });
     }
   }
+  // FIX : Firebase ne stocke pas les tableaux vides → patch toutes les années existantes
+  // Un tableau vide [] retourné par Firebase arrive comme null ou undefined
+  Object.values(D).forEach(yd => {
+    if(!yd) return;
+    if(!Array.isArray(yd.entries))      yd.entries       = [];
+    if(!yd.monthly_totals)              yd.monthly_totals = {};
+    if(!yd.by_centre)                   yd.by_centre      = {};
+    if(!yd.by_categorie)                yd.by_categorie   = {};
+    MK.forEach(m => {
+      if(!yd.monthly_totals[m]) yd.monthly_totals[m] = {planned:0, actual:0};
+    });
+  });
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -1233,7 +1272,7 @@ function showLogin(msg, isLocal=false) {
 function showApp(withFirebase) {
   document.getElementById("login").style.display = "none";
   document.getElementById("app").style.display   = "block";
-  if(typeof resetIdleTimer === "function") resetIdleTimer(); // redémarrer le timer inactivité
+  startIdleTimer(); // FIX V01 : démarrer le timer SEULEMENT après connexion
   applyAdminBadge();
   initApp(withFirebase);
 }
@@ -1405,7 +1444,13 @@ function closeModal(id) { document.getElementById(id).classList.remove("on"); }
 // ═══════════════════════════════════════════════════════════════
 // Accès direct — D[y] est déjà une référence, pas de copie
 // Note : ne pas memoïser car D est muté directement (pushToFirebase écrit D tel quel)
-function getEntries(y) { return D[y]?.entries || []; }
+function getEntries(y) {
+  const yd = D[y];
+  if(!yd) return [];
+  // FIX : Firebase supprime les tableaux vides → remettre entries:[] si null/undefined
+  if(!Array.isArray(yd.entries)) yd.entries = [];
+  return yd.entries;
+}
 
 // Cache de filtrage pour les opérations coûteuses du Dashboard
 // Invalidé à chaque recompute() ou chargement Firebase
@@ -1564,14 +1609,23 @@ function renderDashboard() {
   `;
 
   // KPI cards
-  document.getElementById("kpi-g").innerHTML = kpis.map(k=>`
-    <div class="kcard">
+  // FIX V01 : KPI Épargne disponible (solde global toutes opérations)
+  const _epSolde = (typeof epOps !== "undefined" && epOps.length > 0)
+    ? epOps.reduce((s,o) => s + (o.type==="depot" ? (o.montant||0) : -(o.montant||0)), 0)
+    : null;
+  const _epKpi = _epSolde !== null
+    ? { ic:"🏦", lb:"Épargne disponible", v: (_epSolde>=0?"+":"")+fmtCFA(_epSolde),
+        col: _epSolde>=0?"#1A6B3C":"#CC3333", s:`${epOps.length} opération(s)` }
+    : { ic:"🏦", lb:"Épargne disponible", v:"—", col:"#9CA8B8", s:"Aucune opération" };
+
+  document.getElementById("kpi-g").innerHTML = [...kpis, _epKpi].map((k,i)=>`
+    <div class="kcard" ${i===4?'style="grid-column:1/-1"':''}>
       <div class="kcard-acc" style="background:${k.col}"></div>
       <div class="kcard-b">
         <span class="kcard-ic">${k.ic}</span>
         <div class="kcard-lb">${k.lb}</div>
         <div class="kcard-v" style="color:${k.col}">${k.v}</div>
-        <div class="kcard-s">${MNF[mi]} ${yr}</div>
+        <div class="kcard-s">${k.s || (MNF[mi]+" "+yr)}</div>
       </div>
     </div>
   `).join("");
@@ -1801,6 +1855,8 @@ function switchSaisieTab(t) {
 function renderSaisieTab() {
   const c = document.getElementById("saisie-content");
   if(!c) return;
+  // FIX : s'assurer que entries est toujours un tableau (Firebase supprime les tableaux vides)
+  if(D[yr] && !Array.isArray(D[yr].entries)) D[yr].entries = [];
   const CTRS_TABS = {
     thies:"PARENTS A THIES", dakar:"FAMILLE A DAKAR",
     dette:"DETTES"
@@ -2134,6 +2190,8 @@ function upEntry(idx) {
 
 function addDepLine(ctr) {
   if(!D[yr]) return;
+  // FIX : Firebase ne stocke pas les tableaux vides → entries peut être undefined
+  if(!Array.isArray(D[yr].entries)) D[yr].entries = [];
   D[yr].entries.push({
     centre:ctr, rubrique:"Nouvelle dépense", beneficiaire:"", categorie:"AUTRE",
     total_planned:0, total_actual:0, ecart:0,
@@ -2689,6 +2747,7 @@ function clearNote(idx, moKey) {
 
 function addRubrique() {
   if(!D[yr]) return;
+  if(!Array.isArray(D[yr].entries)) D[yr].entries = []; // FIX : guard Firebase
   D[yr].entries.push({centre:"AUTRES DEPENSES",rubrique:"Nouvelle rubrique",beneficiaire:"",categorie:"AUTRE",total_planned:0,total_actual:0,ecart:0,monthly:MK.map(m=>({month:m,planned:0,actual:0})),notes:{}});
   recompute(yr); scheduleSync(); renderParamsTab(); toast("Rubrique ajoutée");
 }
@@ -2821,7 +2880,7 @@ function saveIdleDelay() {
                 || prefs.idleDelay || 120;
   prefs.idleDelay = selected;
   scheduleSync();
-  resetIdleTimer(); // Redémarrer avec le nouveau délai
+  stopIdleTimer(); startIdleTimer(); // FIX V01 : redémarrer proprement avec le nouveau délai
   toast("⏱️ Délai : " + (selected < 60 ? selected+"s" : (selected/60)+"min") + " — redémarré");
 }
 
@@ -3691,56 +3750,84 @@ window.addEventListener("offline", function() {
 });
 
 // ═══════════════════════════════════════════════════════════════
-// STARTUP + IDLE AUTO-LOGOUT
+// STARTUP + IDLE AUTO-LOGOUT  [FIX V01 : throttle + guard login]
 // ═══════════════════════════════════════════════════════════════
-let _idleTimer = null;
-// IDLE_MS est maintenant dynamique — lit prefs.idleDelay (en secondes, défaut 120s)
-function getIdleMs() { return ((prefs && prefs.idleDelay) || 120) * 1000; }
+let _idleTimer      = null;
+let _idleThrottle   = null;   // throttle pour éviter le spam sur mousemove/touchmove
+let _idleActive     = false;  // true seulement quand un utilisateur est connecté
+
+// IDLE_MS : lit prefs.idleDelay (secondes, min 10s, défaut 120s)
+function getIdleMs() {
+  const s = (prefs && typeof prefs.idleDelay === "number" && prefs.idleDelay > 0)
+            ? prefs.idleDelay : 120;
+  return Math.max(s, 10) * 1000; // plancher 10s pour éviter NaN ou 0
+}
 
 function resetIdleTimer() {
+  // Guard 1 : pas de timer si l'utilisateur n'est pas connecté
+  if(!_idleActive) return;
+
+  // Throttle : on ne re-programme le setTimeout que 1× toutes les 500 ms max
+  // (évite des milliers de clearTimeout/setTimeout sur mousemove)
+  if(_idleThrottle) return;
+  _idleThrottle = setTimeout(() => { _idleThrottle = null; }, 500);
+
   clearTimeout(_idleTimer);
   const ms = getIdleMs();
   _idleTimer = setTimeout(() => {
-    if(currentUser && typeof firebase !== "undefined") {
-      // Nettoyer les listeners avant signOut
-      if(typeof trListeners !== "undefined" && trListeners.length) {
-        trListeners.forEach(u => { try { u(); } catch(e){} });
-        trListeners.length = 0;
-      }
-      if(typeof _trConnListener === "function") {
-        try { _trConnListener(); } catch(e){} _trConnListener = null;
-      }
-      if(fbRef) { try { fbRef.off(); } catch(e){} }
-      firebase.auth().signOut().then(() => {
-        currentUser = null;
-        // Effacer le champ mot de passe pour forcer re-saisie manuelle
-        const pwdEl = document.getElementById("l-pwd");
-        if(pwdEl) pwdEl.value = "";
-        showLogin("🔒 Déconnexion automatique après " + ((ms/1000)|0) + "s d'inactivité. Veuillez saisir votre mot de passe.");
-      }).catch(err => {
-        currentUser = null;
-        const pwdEl = document.getElementById("l-pwd");
-        if(pwdEl) pwdEl.value = "";
-        showLogin("🔒 Session expirée. Reconnexion requise.");
-      });
-    }
+    // Guard 2 : double-vérification au moment du déclenchement
+    if(!currentUser || typeof firebase === "undefined") return;
+    // FIX : détacher TOUS les listeners AVANT signOut (évite permission_denied)
+    _cleanupAllListeners();
+    _idleActive = false;
+    clearTimeout(_idleTimer);
+    const secLabel = ((ms/1000)|0) + "s";
+    firebase.auth().signOut().then(() => {
+      currentUser = null;
+      const pwdEl = document.getElementById("l-pwd");
+      if(pwdEl) pwdEl.value = "";
+      showLogin("🔒 Déconnexion automatique après " + secLabel + " d'inactivité. Veuillez saisir votre mot de passe.");
+    }).catch(() => {
+      currentUser = null;
+      const pwdEl = document.getElementById("l-pwd");
+      if(pwdEl) pwdEl.value = "";
+      showLogin("🔒 Session expirée. Reconnexion requise.");
+    });
   }, ms);
 }
 
-function initIdleWatcher() {
-  // FIX: Écriture non-destructive — liste étendue + capture:true pour attraper
-  // TOUS les événements même si stopPropagation est appelé quelque part
-  // Couvre : souris, clavier, tactile, scroll, inputs, saisie IME mobile
-  const EVENTS = [
-    "mousemove","mousedown","mouseup","click",
-    "keydown","keyup","input","change",
-    "scroll","wheel",
-    "touchstart","touchmove","touchend",
-    "pointerdown","pointermove",
-    "focus","focusin","selectionchange"
-  ];
-  EVENTS.forEach(e => window.addEventListener(e, resetIdleTimer, {passive:true, capture:true}));
+// Activer le timer (appelé à la connexion)
+function startIdleTimer() {
+  _idleActive = true;
+  clearTimeout(_idleThrottle); _idleThrottle = null;
   resetIdleTimer();
+}
+
+// Désactiver le timer (appelé à la déconnexion)
+function stopIdleTimer() {
+  _idleActive = false;
+  clearTimeout(_idleTimer);
+  clearTimeout(_idleThrottle);
+  _idleTimer    = null;
+  _idleThrottle = null;
+}
+
+function initIdleWatcher() {
+  // Liste exhaustive d'événements — capture:true attrape tout, même derrière stopPropagation
+  const EVENTS = [
+    "mousemove","mousedown","mouseup","click","dblclick",
+    "keydown","keyup","keypress","input","change",
+    "scroll","wheel","drag","dragstart",
+    "touchstart","touchmove","touchend","touchcancel",
+    "pointerdown","pointermove","pointerup",
+    "focus","focusin","blur","selectionchange",
+    "visibilitychange"
+  ];
+  EVENTS.forEach(ev => {
+    const target = ev === "visibilitychange" ? document : window;
+    target.addEventListener(ev, resetIdleTimer, {passive:true, capture:true});
+  });
+  // NE PAS démarrer le timer ici — il démarre seulement à startIdleTimer()
 }
 
 window.addEventListener("load", () => {
@@ -3878,6 +3965,7 @@ let trListeners    = [];        // listeners transaction uniquement (nettoyés �
 let _trDeltaListeners = [];    // FIX v7.1 : listeners delta séparés (ne jamais tuer avec trSubscribeTransactions)
 let _trConnListener = null;     // v7.0 — listener connectivité séparé (ne doit JAMAIS être tué par trSubscribeTransactions)
 let trFbOk         = false;
+let _trPermDenied  = false;   // FIX V01 : true si permission refusée sur TR_Transactions
 
 // Mois/Année de vue Trésorerie (indépendant du yr/mo global)
 const trNow    = new Date();
@@ -4044,8 +4132,19 @@ function trSubscribeTransactions() {
       // Ne pas polluer la console avec les erreurs Kaspersky
       _trScheduleRetry();
     } else {
-      console.error("[Trésorerie] trSubscribeTransactions:", err.message);
-      if(err.code !== "PERMISSION_DENIED") _trScheduleRetry();
+      if(err.code === "PERMISSION_DENIED") {
+        // permission_denied attendu après logout (token révoqué) — ne pas logguer
+        // si l'utilisateur est déjà déconnecté
+        if(currentUser) {
+          console.warn("[Trésorerie] permission_denied — vérifiez les règles Firebase :", err.message);
+          _trPermDenied = true;
+          _trRefreshAllViews();
+        }
+        // Sinon : logout en cours, erreur normale, on ne fait rien
+      } else {
+        console.error("[Trésorerie] trSubscribeTransactions:", err.message);
+        _trScheduleRetry();
+      }
     }
   });
   trListeners.push(() => { try { ref.off("value", unsub); } catch(e){} });
@@ -4118,9 +4217,10 @@ function trSubscribeDeltas() {
     if(trSubPage === "historique") trRenderDeltas();
   }, err => {
     // Erreur réseau silencieuse
-    if(!err.message.includes("PERMISSION_DENIED")) {
+    if(!err.message.includes("PERMISSION_DENIED") && currentUser) {
       setTimeout(() => { if(currentUser && trFbOk) trSubscribeDeltas(); }, 5000);
     }
+    // permission_denied après logout = normal, pas de retry
   });
   _trDeltaListeners.push(() => { try { ref.off("value", unsub); } catch(e){} });
 }
@@ -4186,6 +4286,41 @@ function trRenderPage() {
 
   const pg = document.getElementById("pg-tresorerie");
   if(!pg) return;
+
+  // FIX V01 : bannière d'erreur PERMISSION_DENIED
+  if(_trPermDenied) {
+    pg.innerHTML = `
+      <div class="card" style="padding:20px;border-left:5px solid var(--red);margin-bottom:12px">
+        <div style="font-weight:800;font-size:.9rem;color:var(--red);margin-bottom:10px">
+          🔒 Accès refusé — Permissions Firebase insuffisantes
+        </div>
+        <div style="font-size:.76rem;color:var(--t1);line-height:1.8;margin-bottom:14px">
+          Le module Trésorerie ne peut pas lire <code>fseye/${currentUser?.uid}/TR_Transactions</code>.<br>
+          <strong>Les données ne sont pas perdues</strong> — elles existent sur Firebase mais les règles bloquent l'accès.
+        </div>
+        <div style="background:var(--brd);border-radius:10px;padding:14px;margin-bottom:14px">
+          <div style="font-weight:700;font-size:.78rem;margin-bottom:8px;color:var(--t1)">📋 Règles Firebase à appliquer</div>
+          <div style="font-size:.65rem;color:var(--t3);margin-bottom:8px">Copiez ceci dans <strong>Firebase Console → Realtime Database → Règles</strong></div>
+          <pre style="background:var(--t1);color:#A6E22E;padding:12px;border-radius:8px;font-size:.68rem;overflow-x:auto;line-height:1.6;margin:0">{
+  "rules": {
+    "fseye": {
+      "$uid": {
+        ".read":  "auth != null &amp;&amp; auth.uid === $uid",
+        ".write": "auth != null &amp;&amp; auth.uid === $uid"
+      }
+    },
+    "$other": { ".read": false, ".write": false }
+  }
+}</pre>
+          <div style="font-size:.64rem;color:var(--t3);margin-top:8px">Cette règle donne accès à <strong>tout</strong> le nœud <code>fseye/{uid}</code> (transactions, archives, épargne, etc.) uniquement à l'utilisateur authentifié correspondant.</div>
+        </div>
+        <button class="btn bp" onclick="_trPermDenied=false;trInit();trRenderPage();">
+          🔄 Réessayer après mise à jour des règles
+        </button>
+      </div>
+    `;
+    return; // Ne pas rendre le reste du module
+  }
 
   const TABS = [
     ["dashboard","📊 Tableau de Bord"],
@@ -5207,14 +5342,17 @@ if(typeof currentUser !== "undefined" && currentUser && typeof firebase !== "und
 
 <!-- ═══════════════════════════════════════════════════════════════
      MODULE ÉPARGNE — Firebase RTDB : fseye/{uid}/epargne/{id}
+     FIX V01 : init robuste, graphique Chart.js, KPI dashboard
      ═══════════════════════════════════════════════════════════════ -->
 <script>
 // ── État Épargne ──────────────────────────────────────────────
-let epOps         = [];          // liste des opérations chargées
+let epOps         = [];          // liste des opérations (toutes, chargées depuis Firebase)
 let epListeners   = [];          // unsubscribe listeners Firebase
 let epEditId      = null;        // id de l'opération en cours d'édition
 let epCurType     = "depot";     // type courant dans la modal
 let epCurMode     = "wave";      // mode courant dans la modal
+let _epInitDone   = false;       // garde pour éviter la double-init
+let _epChart      = null;        // référence Chart.js
 
 // ── Utilitaires ───────────────────────────────────────────────
 function epTodayStr() {
@@ -5229,18 +5367,55 @@ function epFmt(n) { return fmtCFA(n); }
 
 // ── Init : lancer le listener Firebase ────────────────────────
 function epInit() {
-  const ref = epRef();
-  if(!ref) return;
+  if(!currentUser) { console.warn("[Épargne] epInit appelé sans currentUser"); return; }
+  if(!fbDB)        { console.warn("[Épargne] epInit appelé sans fbDB"); return; }
+
   // Détacher les anciens listeners
   epListeners.forEach(u => { try { u(); } catch(e){} });
   epListeners = [];
-  const fn = ref.on("value", snap => {
-    const data = snap.val() || {};
-    epOps = Object.values(data).sort((a,b) => b.timestamp - a.timestamp);
+  _epInitDone = true;
+
+  const ref = epRef();
+  if(!ref) return;
+
+  const callback = snap => {
+    const data = snap.val();
+    if(data && typeof data === "object") {
+      // Filtrer les éventuelles valeurs non-objet
+      epOps = Object.values(data)
+        .filter(o => o && typeof o === "object" && o.id)
+        .sort((a,b) => (b.timestamp||0) - (a.timestamp||0));
+    } else {
+      epOps = [];
+    }
+    // Rafraîchir la page Épargne si active
     const pg = document.getElementById("pg-epargne");
     if(pg && pg.classList.contains("on")) epRenderPage();
-  });
-  epListeners.push(() => ref.off("value", fn));
+    // Rafraîchir le KPI dashboard si actif
+    const pgD = document.getElementById("pg-dashboard");
+    if(pgD && pgD.classList.contains("on")) renderDashboard();
+  };
+
+  const errCallback = err => {
+    if(err.code === "PERMISSION_DENIED") {
+      console.warn("[Épargne] Permission refusée sur fseye/"+currentUser.uid+"/epargne — vérifiez les règles Firebase.");
+      const pg = document.getElementById("pg-epargne");
+      if(pg && pg.classList.contains("on")) {
+        pg.querySelector("#ep-perm-err")?.remove();
+        const errDiv = document.createElement("div");
+        errDiv.id = "ep-perm-err";
+        errDiv.className = "card";
+        errDiv.style = "padding:16px;border-left:4px solid var(--red);margin-bottom:12px";
+        errDiv.innerHTML = `<div style="font-weight:800;font-size:.84rem;color:var(--red);margin-bottom:6px">🔒 Permission refusée (epargne)</div>
+          <div style="font-size:.73rem;color:var(--t1);line-height:1.7">Les règles Firebase ne permettent pas l'accès au chemin <code>fseye/${currentUser.uid}/epargne</code>.<br>
+          Appliquez la règle ci-dessous dans la console Firebase.</div>`;
+        pg.prepend(errDiv);
+      }
+    }
+  };
+
+  ref.on("value", callback, errCallback);
+  epListeners.push(() => ref.off("value", callback));
 }
 
 // ── Render page ────────────────────────────────────────────────
@@ -5251,26 +5426,42 @@ function epRenderPage() {
     pg.innerHTML = `<div class="card" style="padding:20px;text-align:center;color:var(--t3)">🔒 Connexion Firebase requise</div>`;
     return;
   }
-  if(!epListeners.length) epInit();
+  if(!_epInitDone) epInit(); // FIX V01 : init paresseuse sécurisée
 
-  const depots  = epOps.filter(o => o.type === "depot");
+  const depots   = epOps.filter(o => o.type === "depot");
   const retraits = epOps.filter(o => o.type === "retrait");
   const totalDep = depots.reduce((s,o) => s+(o.montant||0), 0);
   const totalRet = retraits.reduce((s,o) => s+(o.montant||0), 0);
   const solde    = totalDep - totalRet;
 
-  // Répartition par mode
+  // Répartition par mode (dépôts uniquement)
   const modeMap = {};
   depots.forEach(o => { modeMap[o.mode] = (modeMap[o.mode]||0) + (o.montant||0); });
 
-  const modeIc = { wave:"📱", orange:"🟠", banque:"🏦", espece:"💵" };
+  const modeIc  = { wave:"📱", orange:"🟠", banque:"🏦", espece:"💵" };
   const modeLbl = { wave:"Wave", orange:"Orange Money", banque:"Banque", espece:"Espèces" };
+
+  // ── Données graphique : solde cumulé par mois (12 derniers mois) ──
+  const now = new Date();
+  const chartLabels = [];
+  const chartData   = [];
+  const MK_FR = ["Jan","Fév","Mar","Avr","Mai","Jun","Jul","Aoû","Sep","Oct","Nov","Déc"];
+  for(let i = 11; i >= 0; i--) {
+    const d  = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const ym = d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0");
+    chartLabels.push(MK_FR[d.getMonth()]+" "+String(d.getFullYear()).slice(2));
+    // Solde cumulé jusqu'à ce mois inclus (toutes ops dont date <= fin du mois)
+    const endOfMonth = ym+"-31"; // simplifié : tout ce qui commence par ym
+    const cumDep = epOps.filter(o => o.type==="depot"   && (o.date||"").substring(0,7) <= ym).reduce((s,o)=>s+(o.montant||0),0);
+    const cumRet = epOps.filter(o => o.type==="retrait" && (o.date||"").substring(0,7) <= ym).reduce((s,o)=>s+(o.montant||0),0);
+    chartData.push(cumDep - cumRet);
+  }
 
   pg.innerHTML = `
     <!-- KPIs -->
     <div class="ep-kpi">
       <div class="ep-kcard" style="border-top-color:var(--green)">
-        <div class="ep-kcard-lbl">💰 Solde Épargne</div>
+        <div class="ep-kcard-lbl">💰 Solde Total</div>
         <div class="ep-kcard-v" style="color:${solde>=0?"var(--green)":"var(--red)"}">${epFmt(solde)}</div>
         <div class="ep-kcard-s">${epOps.length} opération(s)</div>
       </div>
@@ -5286,10 +5477,17 @@ function epRenderPage() {
       </div>
     </div>
 
+    <!-- Graphique évolution du solde (12 derniers mois) -->
+    <div class="card" style="padding:13px 15px;margin-bottom:12px">
+      <div style="font-weight:700;font-size:.82rem;margin-bottom:4px">📈 Évolution du solde — 12 derniers mois</div>
+      <div style="font-size:.62rem;color:var(--t3);margin-bottom:10px">Solde cumulé en fin de mois</div>
+      <div style="height:180px"><canvas id="ep-chart-evolution"></canvas></div>
+    </div>
+
     <!-- Répartition par mode -->
     ${Object.keys(modeMap).length > 0 ? `
     <div class="card" style="padding:13px 15px;margin-bottom:12px">
-      <div style="font-weight:700;font-size:.82rem;margin-bottom:10px">📊 Répartition par canal</div>
+      <div style="font-weight:700;font-size:.82rem;margin-bottom:10px">📊 Répartition des dépôts par canal</div>
       ${Object.entries(modeMap).map(([mode,amt]) => {
         const pct = totalDep > 0 ? Math.round(amt/totalDep*100) : 0;
         return `<div style="margin-bottom:8px">
@@ -5307,11 +5505,12 @@ function epRenderPage() {
     <!-- Historique des opérations -->
     <div class="card" style="overflow:hidden;margin-bottom:80px">
       <div class="card-hd">
-        <div><div class="ct">📋 Historique des opérations</div><div class="cs">${epOps.length} entrée(s) — du plus récent</div></div>
+        <div><div class="ct">📋 Historique — toutes opérations</div><div class="cs">${epOps.length} entrée(s) — du plus récent</div></div>
+        <button class="btn bp bsm" onclick="epOpenModal()">+ Nouvelle</button>
       </div>
       <div style="padding:0 14px">
         ${epOps.length === 0
-          ? `<div style="padding:24px 0;text-align:center;color:var(--t3);font-size:.79rem">Aucune opération pour l'instant.<br>Appuyez sur <strong>+</strong> pour commencer.</div>`
+          ? `<div style="padding:24px 0;text-align:center;color:var(--t3);font-size:.79rem">Aucune opération pour l'instant.<br>Appuyez sur <strong>＋</strong> ci-dessus ou sur le bouton flottant.</div>`
           : epOps.map(op => `
           <div class="ep-txn-row">
             <div class="ep-txn-ic" style="background:${op.type==="depot"?"var(--gl)":"var(--rl)"}">
@@ -5337,6 +5536,65 @@ function epRenderPage() {
     <!-- FAB -->
     <button class="ep-fab" onclick="epOpenModal()" title="Nouvelle opération">＋</button>
   `;
+
+  // ── Tracer le graphique après le rendu du DOM ──
+  requestAnimationFrame(() => epDrawChart(chartLabels, chartData));
+}
+
+// ── Graphique Chart.js — solde mensuel ──────────────────────
+function epDrawChart(labels, data) {
+  const canvas = document.getElementById("ep-chart-evolution");
+  if(!canvas || typeof Chart === "undefined") return;
+  // Détruire l'ancienne instance si elle existe
+  if(_epChart) { try { _epChart.destroy(); } catch(e){} _epChart = null; }
+
+  const isDark = document.documentElement.getAttribute("data-theme") === "dark";
+  const gridCol = isDark ? "rgba(255,255,255,.07)" : "rgba(0,0,0,.06)";
+  const tickCol = isDark ? "#8A97AA" : "#9CA8B8";
+  const lineCol = data.every(v=>v>=0) ? "#1A6B3C" : "#2D4FC8";
+  const fillCol = data.every(v=>v>=0) ? "rgba(26,107,60,.12)" : "rgba(45,79,200,.10)";
+
+  _epChart = new Chart(canvas, {
+    type: "line",
+    data: {
+      labels,
+      datasets: [{
+        label: "Solde épargne",
+        data,
+        borderColor: lineCol,
+        backgroundColor: fillCol,
+        borderWidth: 2.5,
+        fill: true,
+        tension: 0.38,
+        pointRadius: 4,
+        pointBackgroundColor: lineCol,
+        pointBorderColor: "#fff",
+        pointBorderWidth: 1.5
+      }]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{display:false},
+        tooltip:{
+          callbacks:{
+            label: ctx => " "+fmtCFA(ctx.parsed.y)
+          }
+        }
+      },
+      scales:{
+        x:{ grid:{display:false}, ticks:{color:tickCol, font:{size:9}} },
+        y:{ grid:{color:gridCol}, ticks:{color:tickCol, font:{size:9},
+              callback: v => {
+                if(Math.abs(v)>=1000000) return (v/1000000).toFixed(1)+"M";
+                if(Math.abs(v)>=1000)    return (v/1000).toFixed(0)+"k";
+                return v;
+              }
+            }
+          }
+      }
+    }
+  });
 }
 
 // ── Modal : ouvrir en création ─────────────────────────────────
@@ -5439,13 +5697,21 @@ function epCloseModal() {
   epEditId = null;
 }
 
-// ── Hook initApp ───────────────────────────────────────────────
+// ── Hook initApp ─────────────────────────────────────────────
+// FIX V01 : utiliser _epInitDone pour éviter la double-initialisation
 const _origInitApp_ep = window.initApp || function(){};
 window.initApp = function(withFirebase) {
   _origInitApp_ep(withFirebase);
-  if(withFirebase && !epListeners.length) epInit();
+  if(withFirebase && !_epInitDone) {
+    epOps = []; // reset propre avant init
+    epInit();
+  }
 };
-if(typeof currentUser !== "undefined" && currentUser && typeof firebase !== "undefined") epInit();
+// Appel de sécurité seulement si Firebase déjà prêt
+if(typeof currentUser !== "undefined" && currentUser &&
+   typeof firebase !== "undefined" && typeof fbDB !== "undefined" && fbDB && !_epInitDone) {
+  epInit();
+}
 </script>
 
 <!-- ═══ MODAL TRÉSORERIE : SAISIE ═══ -->
