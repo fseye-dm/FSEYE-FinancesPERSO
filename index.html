@@ -8,7 +8,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="FSEYE">
 <meta name="theme-color" content="#1B3A2D">
-<title>FSEYE · Budget Familial v7.2</title>
+<title>FSEYE · Budget Familial [V01]</title>
 <link id="pwa-manifest-link" rel="manifest">
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
@@ -256,6 +256,45 @@ input,button,select{font-family:inherit;-webkit-tap-highlight-color:transparent}
 .mono{font-family:'JetBrains Mono',monospace;white-space:nowrap}
 .gn{color:var(--green)}.ng{color:var(--red)}.wn{color:var(--amber)}
 .fw9{font-weight:900}
+
+/* ═══════════════ ADMIN BADGE ═══════════════ */
+.admin-badge{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:99px;font-size:.5rem;font-weight:800;text-transform:uppercase;letter-spacing:1.5px;background:rgba(255,192,0,.18);color:#FFD700;border:1px solid rgba(255,192,0,.35);margin-top:3px}
+
+/* ═══════════════ ÉPARGNE MODULE ═══════════════ */
+.ep-kpi{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-bottom:12px}
+.ep-kcard{background:var(--card);border:1px solid var(--brd);border-radius:12px;padding:12px 14px;border-top:3px solid transparent}
+.ep-kcard-lbl{font-size:.56rem;text-transform:uppercase;letter-spacing:1.2px;color:var(--t3);font-weight:700;margin-bottom:5px}
+.ep-kcard-v{font-family:'JetBrains Mono',monospace;font-size:.9rem;font-weight:800;color:var(--t1)}
+.ep-kcard-s{font-size:.6rem;color:var(--t3);margin-top:2px}
+.ep-mode-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:7px;margin-top:8px}
+.ep-mode-chip{padding:9px 8px;border-radius:9px;border:1.5px solid var(--brd);background:var(--bg);color:var(--t2);font-family:inherit;font-size:.73rem;font-weight:600;cursor:pointer;transition:all .15s;text-align:center}
+.ep-mode-chip.on{border-color:var(--green);background:var(--gl);color:var(--green)}
+.ep-type-pills{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+.ep-type-pill{padding:10px 8px;border-radius:10px;border:2px solid var(--brd);background:var(--bg);color:var(--t2);font-family:inherit;font-size:.78rem;font-weight:700;cursor:pointer;transition:all .15s;text-align:center;display:flex;flex-direction:column;align-items:center;gap:4px}
+.ep-type-pill.depot{border-color:var(--green);background:var(--gl);color:var(--green)}
+.ep-type-pill.retrait{border-color:var(--red);background:var(--rl);color:var(--red)}
+.ep-fab{position:fixed;bottom:calc(70px + var(--sab) + 10px);right:16px;z-index:44;width:52px;height:52px;border-radius:50%;background:var(--green);color:#fff;border:none;font-size:1.5rem;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 18px rgba(26,107,60,.35);cursor:pointer;transition:all .18s}
+.ep-fab:active{transform:scale(.93)}
+.ep-txn-row{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--brd)}
+.ep-txn-row:last-child{border-bottom:none}
+.ep-txn-ic{width:34px;height:34px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1rem;flex-shrink:0}
+.ep-txn-info{flex:1;min-width:0}
+.ep-txn-note{font-size:.71rem;font-weight:600;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ep-txn-meta{font-size:.62rem;color:var(--t3);margin-top:1px}
+.ep-txn-amt{font-family:'JetBrains Mono',monospace;font-size:.84rem;font-weight:800;white-space:nowrap}
+.ep-modal-bg{position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.5);backdrop-filter:blur(6px);display:none;align-items:flex-end;justify-content:center;padding-bottom:var(--sab)}
+.ep-modal-bg.open{display:flex}
+.ep-modal-box{background:var(--card);border-radius:18px 18px 0 0;padding:20px 20px calc(20px + var(--sab));width:100%;max-width:600px;max-height:92vh;overflow-y:auto;animation:slideUp .25s ease}
+.ep-modal-hd{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+.ep-modal-title{font-weight:800;font-size:.92rem;color:var(--t1)}
+.ep-modal-close{background:none;border:none;font-size:1.2rem;cursor:pointer;color:var(--t2);padding:4px;min-height:40px;width:40px;display:flex;align-items:center;justify-content:center}
+.ep-fld{width:100%;padding:9px 11px;border:1.5px solid var(--brd);border-radius:8px;font-family:inherit;font-size:.83rem;outline:none;background:var(--bg);color:var(--t1);transition:border-color .18s;min-height:44px}
+.ep-fld:focus{border-color:var(--green);background:var(--card)}
+.ep-form-lbl{font-size:.62rem;text-transform:uppercase;letter-spacing:1px;color:var(--t3);font-weight:700;margin-bottom:4px;display:block}
+.ep-submit{width:100%;padding:13px;border-radius:10px;border:none;font-family:inherit;font-weight:800;font-size:.88rem;cursor:pointer;margin-top:14px;min-height:48px;transition:all .18s}
+.ep-submit-dep{background:var(--green);color:#fff}
+.ep-submit-ret{background:var(--red);color:#fff}
+@media(max-width:500px){.ep-kpi{grid-template-columns:1fr 1fr}}
 .spinner{width:32px;height:32px;border:3px solid var(--brd);border-top-color:var(--green);border-radius:50%;animation:spin .7s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 .loading{position:fixed;inset:0;z-index:9999;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px}
@@ -589,6 +628,7 @@ input,button,select{font-family:inherit;-webkit-tap-highlight-color:transparent}
     <div class="sb-brand">
       <div class="sb-name" id="sb-name" onclick="goTo('params')">FSEYE</div>
       <div class="sb-tag" id="sb-tag">Budget Familial</div>
+      <div id="sb-admin-badge" style="display:none;margin-top:4px"><span class="admin-badge">⭐ Admin</span></div>
     </div>
     <div class="sb-body">
       <div class="sb-sec">Navigation</div>
@@ -599,6 +639,7 @@ input,button,select{font-family:inherit;-webkit-tap-highlight-color:transparent}
       <button class="ni"     id="ni-params"     onclick="goTo('params')"><span>⚙️</span>Paramètres</button>
       <div class="sb-sec" style="margin-top:4px">Finances</div>
       <button class="ni"     id="ni-tresorerie" onclick="goTo('tresorerie')"><span>💰</span>Trésorerie</button>
+      <button class="ni"     id="ni-epargne"    onclick="goTo('epargne')"><span>🏦</span>Épargne</button>
     </div>
     <div class="sb-foot">
       <button class="logout-btn" onclick="doLogout()">🚪 Déconnexion</button>
@@ -653,6 +694,7 @@ input,button,select{font-family:inherit;-webkit-tap-highlight-color:transparent}
     <div id="pg-historique" class="pg"></div>
     <div id="pg-params"     class="pg"></div>
     <div id="pg-tresorerie" class="pg"></div>
+    <div id="pg-epargne"    class="pg"></div>
   </div>
 
   <!-- BOTTOM NAV -->
@@ -663,6 +705,7 @@ input,button,select{font-family:inherit;-webkit-tap-highlight-color:transparent}
     <button class="bn"    id="bn-historique" onclick="goTo('historique')"><span class="bn-ic">📅</span>Historique</button>
     <button class="bn"    id="bn-params"     onclick="goTo('params')"><span class="bn-ic">⚙️</span>Réglages</button>
     <button class="bn"    id="bn-tresorerie" onclick="goTo('tresorerie')"><span class="bn-ic">💰</span>Tréso</button>
+    <button class="bn"    id="bn-epargne"    onclick="goTo('epargne')"><span class="bn-ic">🏦</span>Épargne</button>
   </nav>
 </div>
 
@@ -744,10 +787,23 @@ const CTR_CFG = {
 function getCtrName(ctr) {
   return (prefs && prefs.centreNames && prefs.centreNames[ctr]) || CTR_CFG[ctr]?.name || ctr;
 }
+// ── Version application ──
+const APP_VERSION      = "V01";
+const APP_VERSION_DATE = "2026-05-13";
+
+// ── Admin detection ──
+function isAdmin() {
+  return currentUser && currentUser.email === ALLOWED_EMAILS[0];
+}
+function applyAdminBadge() {
+  const badge = document.getElementById("sb-admin-badge");
+  if(badge) badge.style.display = isAdmin() ? "block" : "none";
+}
+
 const NAV_TITLES = {
   dashboard:"Tableau de Bord", saisie:"Saisie Mensuelle",
   analyse:"Analyse & Rapport", historique:"Historique", params:"Paramètres",
-  tresorerie:"💰 Trésorerie"
+  tresorerie:"💰 Trésorerie", epargne:"🏦 Épargne"
 };
 
 // ═══════════════════════════════════════════════════════════════
@@ -1178,6 +1234,7 @@ function showApp(withFirebase) {
   document.getElementById("login").style.display = "none";
   document.getElementById("app").style.display   = "block";
   if(typeof resetIdleTimer === "function") resetIdleTimer(); // redémarrer le timer inactivité
+  applyAdminBadge();
   initApp(withFirebase);
 }
 
@@ -1270,7 +1327,7 @@ function renderPage(id) {
   const fn = {
     dashboard: renderDashboard, saisie: renderSaisie,
     analyse: renderAnalyse, historique: renderHistorique, params: renderParams,
-    tresorerie: trRenderPage
+    tresorerie: trRenderPage, epargne: epRenderPage
   };
   if(fn[id]) fn[id]();
 }
@@ -2405,14 +2462,50 @@ function renderParamsTab() {
 
 function paramsIdentity(c) {
   const iconB64 = localStorage.getItem("fseye_pwa_icon");
+  const pwFeedbackId = "pw-change-feedback";
   c.innerHTML = `<div class="card" style="padding:18px">
     <div style="font-weight:700;font-size:.84rem;margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid var(--brd)">Nom & Sous-titre</div>
     <label class="lbl-s">Nom de l'application</label>
     <input id="p-name" class="fld" value="${prefs.displayName||"FSEYE"}" placeholder="FSEYE" style="margin-bottom:10px">
     <label class="lbl-s">Propriétaire / Sous-titre</label>
     <input id="p-tag" class="fld" value="${prefs.tagline||"Budget Familial"}" placeholder="Budget Familial" style="margin-bottom:16px">
-    ${currentUser?`<div style="font-size:.7rem;color:var(--t3);margin-bottom:14px">Compte : <strong>${currentUser.email}</strong></div>`:""}
+    ${currentUser?`<div style="font-size:.7rem;color:var(--t3);margin-bottom:14px">Compte : <strong>${currentUser.email}</strong>${isAdmin()?' <span class="admin-badge" style="vertical-align:middle">⭐ Admin</span>':''}</div>`:""}
     <button class="btn bp bfw" onclick="saveIdentity()">💾 Enregistrer</button>
+  </div>
+
+  <!-- VERSION APPLICATION -->
+  <div class="card" style="padding:16px;margin-top:12px;border-left:3px solid var(--purple)">
+    <div style="font-weight:800;font-size:.84rem;margin-bottom:10px;color:var(--purple)">🏷️ Version de l'application</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div style="background:var(--pl);border-radius:9px;padding:11px 13px">
+        <div style="font-size:.56rem;text-transform:uppercase;letter-spacing:1.2px;color:var(--purple);font-weight:700;margin-bottom:4px">Version</div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:1.1rem;font-weight:900;color:var(--purple)">${APP_VERSION}</div>
+      </div>
+      <div style="background:var(--pl);border-radius:9px;padding:11px 13px">
+        <div style="font-size:.56rem;text-transform:uppercase;letter-spacing:1.2px;color:var(--purple);font-weight:700;margin-bottom:4px">Date</div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:.88rem;font-weight:800;color:var(--purple)">${APP_VERSION_DATE}</div>
+      </div>
+    </div>
+    <div style="font-size:.65rem;color:var(--t3);margin-top:8px">Cette version marque le déploiement initial de FSEYE avec Firebase Auth, module Épargne et profil Admin.</div>
+  </div>
+
+  <!-- CHANGEMENT DE MOT DE PASSE -->
+  <div class="card" style="padding:18px;margin-top:12px;border-left:3px solid var(--amber)">
+    <div style="font-weight:800;font-size:.84rem;margin-bottom:12px;color:var(--amber)">🔒 Changer mon mot de passe</div>
+    <div style="margin-bottom:10px">
+      <label class="lbl-s">Mot de passe actuel</label>
+      <input type="password" id="pw-current" class="fld" placeholder="Votre mot de passe actuel" autocomplete="current-password">
+    </div>
+    <div style="margin-bottom:10px">
+      <label class="lbl-s">Nouveau mot de passe</label>
+      <input type="password" id="pw-new" class="fld" placeholder="Min. 6 caractères" autocomplete="new-password">
+    </div>
+    <div style="margin-bottom:14px">
+      <label class="lbl-s">Confirmer le nouveau mot de passe</label>
+      <input type="password" id="pw-confirm" class="fld" placeholder="Répéter le nouveau mot de passe" autocomplete="new-password">
+    </div>
+    <div id="${pwFeedbackId}" style="display:none;margin-bottom:10px;padding:8px 12px;border-radius:8px;font-size:.76rem;font-weight:600"></div>
+    <button class="btn bp bfw" onclick="changePassword()">🔑 Mettre à jour le mot de passe</button>
   </div>
   <div class="card" style="padding:16px;margin-top:12px;border-left:3px solid var(--blue)">
     <div style="font-weight:800;font-size:.84rem;margin-bottom:8px;color:var(--blue)">👥 Guide multi-utilisateurs (ex: Mariama)</div>
@@ -2447,6 +2540,57 @@ function saveIdentity() {
   localStorage.setItem("fseye_id", JSON.stringify({name,tagline:tag}));
   scheduleSync();
   toast("Identité sauvegardée ✓");
+}
+
+// ── Changement de mot de passe ──────────────────────────────────
+async function changePassword() {
+  const curPwd    = document.getElementById("pw-current")?.value || "";
+  const newPwd    = document.getElementById("pw-new")?.value || "";
+  const confPwd   = document.getElementById("pw-confirm")?.value || "";
+  const feedbackEl = document.getElementById("pw-change-feedback");
+
+  function showPwFeedback(msg, isOk) {
+    if(!feedbackEl) return;
+    feedbackEl.style.display = "block";
+    feedbackEl.style.background = isOk ? "var(--gl)" : "var(--rl)";
+    feedbackEl.style.color = isOk ? "var(--green)" : "var(--red)";
+    feedbackEl.textContent = msg;
+  }
+
+  if(!curPwd || !newPwd || !confPwd) {
+    showPwFeedback("⚠️ Tous les champs sont requis.", false); return;
+  }
+  if(newPwd.length < 6) {
+    showPwFeedback("⚠️ Le nouveau mot de passe doit contenir au moins 6 caractères.", false); return;
+  }
+  if(newPwd !== confPwd) {
+    showPwFeedback("⚠️ Les deux nouveaux mots de passe ne correspondent pas.", false); return;
+  }
+  if(!currentUser || !fbAuth) {
+    showPwFeedback("⚠️ Utilisateur non connecté.", false); return;
+  }
+
+  try {
+    // Ré-authentification obligatoire avant updatePassword
+    const credential = firebase.auth.EmailAuthProvider.credential(currentUser.email, curPwd);
+    await currentUser.reauthenticateWithCredential(credential);
+    await currentUser.updatePassword(newPwd);
+    showPwFeedback("✅ Mot de passe mis à jour avec succès !", true);
+    // Vider les champs
+    ["pw-current","pw-new","pw-confirm"].forEach(id => {
+      const el = document.getElementById(id);
+      if(el) el.value = "";
+    });
+  } catch(e) {
+    const msgs = {
+      "auth/wrong-password": "❌ Mot de passe actuel incorrect.",
+      "auth/weak-password":  "❌ Nouveau mot de passe trop faible (min. 6 caractères).",
+      "auth/requires-recent-login": "❌ Session expirée — déconnectez-vous et reconnectez-vous.",
+      "auth/network-request-failed": "❌ Erreur réseau — vérifiez votre connexion.",
+      "auth/invalid-credential": "❌ Mot de passe actuel incorrect."
+    };
+    showPwFeedback(msgs[e.code] || ("❌ Erreur : " + e.message), false);
+  }
 }
 
 function paramsRubriques(c) {
@@ -5061,6 +5205,249 @@ if(typeof currentUser !== "undefined" && currentUser && typeof firebase !== "und
 
 </script>
 
+<!-- ═══════════════════════════════════════════════════════════════
+     MODULE ÉPARGNE — Firebase RTDB : fseye/{uid}/epargne/{id}
+     ═══════════════════════════════════════════════════════════════ -->
+<script>
+// ── État Épargne ──────────────────────────────────────────────
+let epOps         = [];          // liste des opérations chargées
+let epListeners   = [];          // unsubscribe listeners Firebase
+let epEditId      = null;        // id de l'opération en cours d'édition
+let epCurType     = "depot";     // type courant dans la modal
+let epCurMode     = "wave";      // mode courant dans la modal
+
+// ── Utilitaires ───────────────────────────────────────────────
+function epTodayStr() {
+  const d = new Date();
+  return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+}
+function epRef() {
+  if(!currentUser || !fbDB) return null;
+  return fbDB.ref("fseye/"+currentUser.uid+"/epargne");
+}
+function epFmt(n) { return fmtCFA(n); }
+
+// ── Init : lancer le listener Firebase ────────────────────────
+function epInit() {
+  const ref = epRef();
+  if(!ref) return;
+  // Détacher les anciens listeners
+  epListeners.forEach(u => { try { u(); } catch(e){} });
+  epListeners = [];
+  const fn = ref.on("value", snap => {
+    const data = snap.val() || {};
+    epOps = Object.values(data).sort((a,b) => b.timestamp - a.timestamp);
+    const pg = document.getElementById("pg-epargne");
+    if(pg && pg.classList.contains("on")) epRenderPage();
+  });
+  epListeners.push(() => ref.off("value", fn));
+}
+
+// ── Render page ────────────────────────────────────────────────
+function epRenderPage() {
+  const pg = document.getElementById("pg-epargne");
+  if(!pg) return;
+  if(!currentUser || !fbDB) {
+    pg.innerHTML = `<div class="card" style="padding:20px;text-align:center;color:var(--t3)">🔒 Connexion Firebase requise</div>`;
+    return;
+  }
+  if(!epListeners.length) epInit();
+
+  const depots  = epOps.filter(o => o.type === "depot");
+  const retraits = epOps.filter(o => o.type === "retrait");
+  const totalDep = depots.reduce((s,o) => s+(o.montant||0), 0);
+  const totalRet = retraits.reduce((s,o) => s+(o.montant||0), 0);
+  const solde    = totalDep - totalRet;
+
+  // Répartition par mode
+  const modeMap = {};
+  depots.forEach(o => { modeMap[o.mode] = (modeMap[o.mode]||0) + (o.montant||0); });
+
+  const modeIc = { wave:"📱", orange:"🟠", banque:"🏦", espece:"💵" };
+  const modeLbl = { wave:"Wave", orange:"Orange Money", banque:"Banque", espece:"Espèces" };
+
+  pg.innerHTML = `
+    <!-- KPIs -->
+    <div class="ep-kpi">
+      <div class="ep-kcard" style="border-top-color:var(--green)">
+        <div class="ep-kcard-lbl">💰 Solde Épargne</div>
+        <div class="ep-kcard-v" style="color:${solde>=0?"var(--green)":"var(--red)"}">${epFmt(solde)}</div>
+        <div class="ep-kcard-s">${epOps.length} opération(s)</div>
+      </div>
+      <div class="ep-kcard" style="border-top-color:var(--blue)">
+        <div class="ep-kcard-lbl">⬆️ Total Dépôts</div>
+        <div class="ep-kcard-v" style="color:var(--blue)">${epFmt(totalDep)}</div>
+        <div class="ep-kcard-s">${depots.length} dépôt(s)</div>
+      </div>
+      <div class="ep-kcard" style="border-top-color:var(--red)">
+        <div class="ep-kcard-lbl">⬇️ Total Retraits</div>
+        <div class="ep-kcard-v" style="color:var(--red)">${epFmt(totalRet)}</div>
+        <div class="ep-kcard-s">${retraits.length} retrait(s)</div>
+      </div>
+    </div>
+
+    <!-- Répartition par mode -->
+    ${Object.keys(modeMap).length > 0 ? `
+    <div class="card" style="padding:13px 15px;margin-bottom:12px">
+      <div style="font-weight:700;font-size:.82rem;margin-bottom:10px">📊 Répartition par canal</div>
+      ${Object.entries(modeMap).map(([mode,amt]) => {
+        const pct = totalDep > 0 ? Math.round(amt/totalDep*100) : 0;
+        return `<div style="margin-bottom:8px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+            <span style="font-size:.74rem;font-weight:600">${modeIc[mode]||"💱"} ${modeLbl[mode]||mode}</span>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:.74rem;font-weight:700;color:var(--blue)">${epFmt(amt)} <span style="color:var(--t3)">(${pct}%)</span></span>
+          </div>
+          <div style="height:6px;background:var(--brd);border-radius:99px;overflow:hidden">
+            <div style="height:100%;width:${pct}%;background:var(--blue);border-radius:99px;transition:width .5s"></div>
+          </div>
+        </div>`;
+      }).join("")}
+    </div>` : ""}
+
+    <!-- Historique des opérations -->
+    <div class="card" style="overflow:hidden;margin-bottom:80px">
+      <div class="card-hd">
+        <div><div class="ct">📋 Historique des opérations</div><div class="cs">${epOps.length} entrée(s) — du plus récent</div></div>
+      </div>
+      <div style="padding:0 14px">
+        ${epOps.length === 0
+          ? `<div style="padding:24px 0;text-align:center;color:var(--t3);font-size:.79rem">Aucune opération pour l'instant.<br>Appuyez sur <strong>+</strong> pour commencer.</div>`
+          : epOps.map(op => `
+          <div class="ep-txn-row">
+            <div class="ep-txn-ic" style="background:${op.type==="depot"?"var(--gl)":"var(--rl)"}">
+              ${op.type==="depot"?"⬆️":"⬇️"}
+            </div>
+            <div class="ep-txn-info">
+              <div class="ep-txn-note">${esc(op.note||op.type)}</div>
+              <div class="ep-txn-meta">${op.date||""} · ${modeIc[op.mode]||""} ${modeLbl[op.mode]||op.mode||""}</div>
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
+              <div class="ep-txn-amt" style="color:${op.type==="depot"?"var(--blue)":"var(--red)"}">
+                ${op.type==="depot"?"+":"−"}${epFmt(op.montant||0)}
+              </div>
+              <div style="display:flex;gap:4px">
+                <button onclick="epOpenEdit('${op.id}')" style="font-size:.62rem;padding:2px 7px;border-radius:5px;border:1px solid var(--brd);background:var(--bg);color:var(--t2);cursor:pointer;min-height:26px">✏️</button>
+                <button onclick="epDelete('${op.id}')" style="font-size:.62rem;padding:2px 7px;border-radius:5px;border:1px solid var(--rl);background:var(--rl);color:var(--red);cursor:pointer;min-height:26px">🗑️</button>
+              </div>
+            </div>
+          </div>`).join("")}
+      </div>
+    </div>
+
+    <!-- FAB -->
+    <button class="ep-fab" onclick="epOpenModal()" title="Nouvelle opération">＋</button>
+  `;
+}
+
+// ── Modal : ouvrir en création ─────────────────────────────────
+function epOpenModal(type) {
+  epEditId   = null;
+  epCurType  = type || "depot";
+  epCurMode  = "wave";
+  const modal = document.getElementById("ep-modal");
+  if(!modal) return;
+  document.getElementById("ep-f-date").value    = epTodayStr();
+  document.getElementById("ep-f-montant").value = "";
+  document.getElementById("ep-f-note").value    = "";
+  document.getElementById("ep-f-editid").value  = "";
+  epSelectType(epCurType);
+  epSelectMode(epCurMode);
+  modal.classList.add("open");
+  setTimeout(() => document.getElementById("ep-f-montant")?.focus(), 250);
+}
+
+// ── Modal : ouvrir en édition ──────────────────────────────────
+function epOpenEdit(id) {
+  const op = epOps.find(o => o.id === id);
+  if(!op) return;
+  epEditId  = id;
+  epCurType = op.type || "depot";
+  epCurMode = op.mode || "wave";
+  const modal = document.getElementById("ep-modal");
+  if(!modal) return;
+  document.getElementById("ep-f-date").value    = op.date || epTodayStr();
+  document.getElementById("ep-f-montant").value = op.montant || "";
+  document.getElementById("ep-f-note").value    = op.note || "";
+  document.getElementById("ep-f-editid").value  = id;
+  epSelectType(epCurType);
+  epSelectMode(epCurMode);
+  modal.classList.add("open");
+}
+
+// ── Sélecteur de type ──────────────────────────────────────────
+function epSelectType(t) {
+  epCurType = t;
+  document.querySelectorAll(".ep-type-pill").forEach(btn => {
+    btn.classList.remove("depot","retrait");
+    if(btn.dataset.type === t) btn.classList.add(t);
+  });
+  const submitBtn = document.getElementById("ep-submit-btn");
+  if(submitBtn) {
+    submitBtn.className = "ep-submit " + (t==="depot"?"ep-submit-dep":"ep-submit-ret");
+    submitBtn.innerHTML = t === "depot" ? "⬆️ Enregistrer le Dépôt" : "⬇️ Enregistrer le Retrait";
+  }
+}
+
+// ── Sélecteur de mode ─────────────────────────────────────────
+function epSelectMode(m) {
+  epCurMode = m;
+  document.querySelectorAll(".ep-mode-chip").forEach(c => {
+    c.classList.toggle("on", c.dataset.mode === m);
+  });
+}
+
+// ── Submit : créer ou modifier ─────────────────────────────────
+async function epSubmit() {
+  const ref = epRef();
+  if(!ref) { toast("❌ Connexion Firebase requise"); return; }
+
+  const date    = document.getElementById("ep-f-date").value;
+  const montant = parseFloat(document.getElementById("ep-f-montant").value)||0;
+  const note    = document.getElementById("ep-f-note").value.trim();
+
+  if(!date)     { toast("⚠️ Date requise"); return; }
+  if(montant<=0){ toast("⚠️ Montant invalide"); return; }
+
+  const id  = epEditId || ("ep_" + Date.now());
+  const op  = { id, type:epCurType, montant, date, mode:epCurMode, note, timestamp: Date.now() };
+
+  try {
+    await ref.child(id).set(op);
+    epCloseModal();
+    toast(epEditId ? "✅ Opération modifiée" : (epCurType==="depot"?"✅ Dépôt enregistré":"✅ Retrait enregistré"));
+  } catch(e) {
+    toast("❌ Erreur Firebase : " + e.message);
+  }
+}
+
+// ── Supprimer ─────────────────────────────────────────────────
+async function epDelete(id) {
+  if(!confirm("Supprimer cette opération ?")) return;
+  const ref = epRef();
+  if(!ref) { toast("❌ Firebase requis"); return; }
+  try {
+    await ref.child(id).remove();
+    toast("🗑️ Opération supprimée");
+  } catch(e) {
+    toast("❌ Erreur : " + e.message);
+  }
+}
+
+// ── Fermer la modal ────────────────────────────────────────────
+function epCloseModal() {
+  document.getElementById("ep-modal")?.classList.remove("open");
+  epEditId = null;
+}
+
+// ── Hook initApp ───────────────────────────────────────────────
+const _origInitApp_ep = window.initApp || function(){};
+window.initApp = function(withFirebase) {
+  _origInitApp_ep(withFirebase);
+  if(withFirebase && !epListeners.length) epInit();
+};
+if(typeof currentUser !== "undefined" && currentUser && typeof firebase !== "undefined") epInit();
+</script>
+
 <!-- ═══ MODAL TRÉSORERIE : SAISIE ═══ -->
 <div class="tr-modal-bg" id="tr-modal-txn">
   <div class="tr-modal-box">
@@ -5139,6 +5526,64 @@ if(typeof currentUser !== "undefined" && currentUser && typeof firebase !== "und
       <p style="font-size:.76rem;color:var(--t2);margin-bottom:14px;line-height:1.6">⚠️ Action <strong>irréversible</strong>. Les transactions seront archivées dans Firebase.</p>
       <button class="tr-submit tr-submit-rev" onclick="trExecuteCloture()">✅ Confirmer la clôture</button>
     </div>
+  </div>
+</div>
+
+<!-- ═══ MODAL ÉPARGNE ═══ -->
+<div class="ep-modal-bg" id="ep-modal">
+  <div class="ep-modal-box">
+    <div class="ep-modal-hd">
+      <div class="ep-modal-title" id="ep-modal-title">🏦 Nouvelle opération d'épargne</div>
+      <button class="ep-modal-close" onclick="epCloseModal()">✕</button>
+    </div>
+
+    <!-- Type -->
+    <div style="margin-bottom:12px">
+      <label class="ep-form-lbl">Type d'opération</label>
+      <div class="ep-type-pills">
+        <button class="ep-type-pill depot" data-type="depot" onclick="epSelectType('depot')">
+          <span style="font-size:1.4rem">⬆️</span><span>Dépôt</span>
+        </button>
+        <button class="ep-type-pill" data-type="retrait" onclick="epSelectType('retrait')">
+          <span style="font-size:1.4rem">⬇️</span><span>Retrait</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Date & Montant -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:12px">
+      <div>
+        <label class="ep-form-lbl">Date</label>
+        <input type="date" id="ep-f-date" class="ep-fld">
+      </div>
+      <div>
+        <label class="ep-form-lbl">Montant (CFA)</label>
+        <input type="number" id="ep-f-montant" class="ep-fld" placeholder="0" inputmode="numeric" min="0">
+      </div>
+    </div>
+
+    <!-- Mode de paiement -->
+    <div style="margin-bottom:12px">
+      <label class="ep-form-lbl">Canal</label>
+      <div class="ep-mode-grid">
+        <button class="ep-mode-chip on" data-mode="wave"   onclick="epSelectMode('wave')">📱 Wave</button>
+        <button class="ep-mode-chip"    data-mode="orange" onclick="epSelectMode('orange')">🟠 Orange Money</button>
+        <button class="ep-mode-chip"    data-mode="banque" onclick="epSelectMode('banque')">🏦 Banque</button>
+        <button class="ep-mode-chip"    data-mode="espece" onclick="epSelectMode('espece')">💵 Espèces</button>
+      </div>
+    </div>
+
+    <!-- Note -->
+    <div style="margin-bottom:4px">
+      <label class="ep-form-lbl">Note / Description</label>
+      <input type="text" id="ep-f-note" class="ep-fld" placeholder="Ex: Épargne mensuelle Mai…">
+    </div>
+
+    <input type="hidden" id="ep-f-editid">
+
+    <button class="ep-submit ep-submit-dep" id="ep-submit-btn" onclick="epSubmit()">
+      ⬆️ Enregistrer le Dépôt
+    </button>
   </div>
 </div>
 
