@@ -38,31 +38,95 @@
 }
 [data-theme=dark]{--bg:#0E1015;--card:#161A22;--t1:#F0F4F8;--t2:#8A97AA;--t3:#5A6678;--brd:rgba(255,255,255,.07)}
 [data-theme=ocean]{
-  --bg:#E8F8FF;--card:#FFFFFF;--sidebar:#0A4D68;
-  --t1:#0A2F3D;--t2:#1B6B8A;--t3:#5B9BB5;
-  --brd:#B8E4F5;--brd2:#9DD4EC;
-  --sh:0 2px 12px rgba(10,77,104,.10);
-  --green:#07835E;--gm:#0AA876;--gl:#D4F5EC;
-  --red:#D62B2B;--rl:#FFECEC;
-  --blue:#1A5FC8;--bl:#E4EDFF;
-  --amber:#B87A00;--al:#FFF4CC;
-  --teal:#007A9E;--purple:#5C3D9C;--pl:#EDE7F6;
-  --sidebar-text:#E0F4FF;--sidebar-active:rgba(255,255,255,.15)
+  --bg:#D6F2FF;--card:#FFFFFF;--sidebar:#0A4D68;
+  --t1:#08263A;--t2:#0E5272;--t3:#2A7D9C;
+  --brd:#90D4EF;--brd2:#62BEDE;
+  --sh:0 2px 14px rgba(10,77,104,.13);
+  --green:#056B4D;--gm:#0A9068;--gl:#C8F2E8;
+  --red:#C42424;--rl:#FFE4E4;
+  --blue:#1850B8;--bl:#D8E8FF;
+  --amber:#A06000;--al:#FFF3CC;
+  --teal:#006E8F;--purple:#4B2E8A;--pl:#EAE0FF;
+  --sidebar-text:#C8EEFF;--sidebar-active:rgba(255,255,255,.18)
 }
-/* Ocean: fond dégradé aquarium + petits poissons décoratifs */
-[data-theme=ocean] body{background:linear-gradient(160deg,#CCF0FF 0%,#E8F8FF 40%,#D8F5F0 100%)}
-[data-theme=ocean] .sb{background:linear-gradient(180deg,#063B52 0%,#0A4D68 60%,#0B5F7A 100%)}
-[data-theme=ocean] .topbar{background:rgba(232,248,255,.95);border-bottom:1px solid #B8E4F5}
-[data-theme=ocean] .kcard{background:#fff;border-color:#C5EBFA}
-[data-theme=ocean] .card{background:#fff;border-color:#C5EBFA}
-[data-theme=ocean] .cbl{background:#fff;border-color:#C5EBFA}
-/* Bulles décoratives aquarium (pseudo-éléments sur main) */
+/* ── Ocean: fond dégradé aquarium ── */
+[data-theme=ocean] body{
+  background:linear-gradient(175deg,#A8E6FF 0%,#C8F2FF 30%,#D6F8FF 60%,#B8F0E8 100%);
+  min-height:100vh;
+}
+[data-theme=ocean] .sb{background:linear-gradient(180deg,#052D42 0%,#0A4D68 50%,#0D6080 100%)}
+[data-theme=ocean] .topbar{background:rgba(200,242,255,.96);border-bottom:2px solid #7ECCE8;backdrop-filter:blur(14px)}
+[data-theme=ocean] .kcard{background:rgba(255,255,255,.92);border-color:#90D4EF;box-shadow:0 2px 12px rgba(10,77,104,.10)}
+[data-theme=ocean] .card{background:rgba(255,255,255,.95);border-color:#90D4EF;box-shadow:0 2px 12px rgba(10,77,104,.08)}
+[data-theme=ocean] .cbl{background:rgba(255,255,255,.92);border-color:#90D4EF}
+[data-theme=ocean] .pg{background:transparent}
+/* Textes explicitements renforcés pour contraste */
+[data-theme=ocean] .ct{color:#08263A}
+[data-theme=ocean] .cs{color:#1C6880}
+[data-theme=ocean] .tot-bar{background:linear-gradient(90deg,#0A4D68,#0D7090)}
+[data-theme=ocean] .tabs .tab{background:rgba(255,255,255,.7);border-color:#90D4EF;color:#0E5272}
+[data-theme=ocean] .tabs .tab.on{background:#0A4D68;color:#fff;border-color:#0A4D68}
+[data-theme=ocean] .fld{background:rgba(255,255,255,.9);border-color:#90D4EF;color:#08263A}
+[data-theme=ocean] .fld:focus{border-color:#0D6080;box-shadow:0 0 0 3px rgba(13,96,128,.15)}
+[data-theme=ocean] .btn{border-color:#90D4EF;color:#0E5272}
+[data-theme=ocean] .lbl-s{color:#0E5272;font-weight:700}
+[data-theme=ocean] .tbl th{color:#0A4D68;border-color:#B8E4F5}
+[data-theme=ocean] .tbl td{border-color:#D6F2FF}
+
+/* ── POISSONS AQUARIUM — animation multi-couche ── */
+/* Groupe 1 : poissons dérivant à droite (lents) */
 [data-theme=ocean] .main::before{
-  content:"🐠 🐟 🐡";position:fixed;top:60%;right:2%;font-size:1.6rem;
-  opacity:.08;pointer-events:none;z-index:0;animation:fishFloat 8s ease-in-out infinite alternate;
-  letter-spacing:8px;
+  content:"🐠  🐡  🐟";
+  position:fixed;top:20%;left:-200px;
+  font-size:1.8rem;letter-spacing:28px;
+  opacity:.22;pointer-events:none;z-index:0;
+  animation:fishSwimRight 18s linear infinite;
+  white-space:nowrap;
 }
-@keyframes fishFloat{from{transform:translateY(0) rotate(-5deg)}to{transform:translateY(-20px) rotate(5deg)}}
+/* Groupe 2 : poissons allant à gauche (plus rapides) */
+[data-theme=ocean] .main::after{
+  content:"🦑  🐙  🐠";
+  position:fixed;bottom:25%;right:-200px;
+  font-size:1.4rem;letter-spacing:22px;
+  opacity:.18;pointer-events:none;z-index:0;
+  animation:fishSwimLeft 24s linear infinite 6s;
+  white-space:nowrap;
+}
+/* Bulles montantes sur le body */
+[data-theme=ocean] body::before{
+  content:"🫧  🫧  🫧  🫧";
+  position:fixed;bottom:5%;left:15%;
+  font-size:1.1rem;letter-spacing:18px;
+  opacity:.15;pointer-events:none;z-index:0;
+  animation:bubblesRise 9s ease-in-out infinite;
+}
+[data-theme=ocean] body::after{
+  content:"🐬  🦈";
+  position:fixed;top:70%;right:-150px;
+  font-size:2.2rem;letter-spacing:24px;
+  opacity:.12;pointer-events:none;z-index:0;
+  animation:fishSwimLeft 32s linear infinite 12s;
+}
+@keyframes fishSwimRight{
+  0%  {transform:translateX(0)   translateY(0)  scaleX(1)}
+  45% {transform:translateX(60vw) translateY(-30px) scaleX(1)}
+  50% {transform:translateX(65vw) translateY(-30px) scaleX(1)}
+  55% {transform:translateX(65vw) translateY(-30px) scaleX(-1)}
+  95% {transform:translateX(5vw)  translateY(0)  scaleX(-1)}
+  100%{transform:translateX(0)   translateY(0)  scaleX(1)}
+}
+@keyframes fishSwimLeft{
+  0%  {transform:translateX(0)    translateY(0)  scaleX(-1)}
+  45% {transform:translateX(-65vw) translateY(20px) scaleX(-1)}
+  50% {transform:translateX(-65vw) translateY(20px) scaleX(1)}
+  95% {transform:translateX(-5vw) translateY(0)  scaleX(1)}
+  100%{transform:translateX(0)   translateY(0)  scaleX(-1)}
+}
+@keyframes bubblesRise{
+  0%  {opacity:.15;transform:translateY(0)   scale(1)}
+  50% {opacity:.22;transform:translateY(-35px) scale(1.06)}
+  100%{opacity:.05;transform:translateY(-80px) scale(.8)}
+}
 html{scroll-behavior:smooth}
 body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(--t1);font-size:14px;min-height:100vh;min-height:100dvh;-webkit-font-smoothing:antialiased;overflow-x:hidden}
 ::-webkit-scrollbar{width:4px;height:4px}
@@ -121,7 +185,7 @@ input,button,select{font-family:inherit;-webkit-tap-highlight-color:transparent}
 .main{margin-left:210px;min-height:100vh}
 .topbar{position:sticky;top:0;z-index:40;background:rgba(242,240,235,.93);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-bottom:1px solid var(--brd);padding:10px 20px;padding-top:max(10px,var(--sat));display:flex;align-items:center;justify-content:space-between;gap:10px}
 [data-theme=dark] .topbar{background:rgba(14,16,21,.93)}
-[data-theme=ocean] .topbar{background:rgba(232,248,255,.95);backdrop-filter:blur(12px)}
+/* ── FIN thème Ocean ── */
 .pg-ttl{font-family:'DM Serif Display',serif;font-size:1rem;color:var(--t1)}
 .mpills{display:flex;gap:2px;flex-wrap:wrap}
 .mp{padding:3px 8px;border-radius:99px;font-size:.63rem;font-weight:700;cursor:pointer;border:1.5px solid var(--brd);color:var(--t2);transition:all .13s;min-height:28px;background:transparent}
@@ -3655,7 +3719,7 @@ function paramsFirebase(c) {
   <div class="card" style="padding:18px;margin-top:12px">
     <div style="font-weight:700;font-size:.84rem;margin-bottom:12px">🎨 Thème</div>
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
-      ${[["cream","#F2F0EB","#556070","CLAIR"],["dark","#161A22","#8A97AA","SOMBRE"],["ocean","#0F2540","#7DB5CC","OCÉAN"]].map(([id,bg,col,lbl])=>`
+      ${[["cream","#F2F0EB","#556070","CLAIR"],["dark","#161A22","#8A97AA","SOMBRE"],["ocean","#D6F2FF","#0E5272","OCÉAN"]].map(([id,bg,col,lbl])=>`
         <div onclick="setTheme('${id}')" id="thc-${id}" style="cursor:pointer;border-radius:8px;overflow:hidden;border:2px solid transparent;transition:border-color .15s">
           <div style="background:${bg};height:40px;display:flex;align-items:center;justify-content:center;font-size:.65rem;color:${col};font-weight:700">${lbl}</div>
         </div>
@@ -5174,52 +5238,93 @@ async function trExecuteCloture() {
   const pym = trPrevYM();
   const [py,pm] = pym.split("-").map(Number);
   trCloseModal("tr-modal-cloture");
-  if(!trFbOk) { toast("❌ Connexion requise pour la clôture."); return; }
+
+  // ── Garde réseau stricte ─────────────────────────────────
+  if(!trFbOk || !fbConnected) {
+    toast("❌ Connexion requise pour la clôture. Reconnectez-vous et réessayez.");
+    return;
+  }
+
   toast("⏳ Clôture en cours…");
 
   try {
     const srcPath  = `fseye/${currentUser.uid}/${TR_PATH.TRANSACTIONS}/${pym}`;
     const archPath = `fseye/${currentUser.uid}/${TR_PATH.ARCHIVES}/${pym}`;
     const deltaPath= `fseye/${currentUser.uid}/${TR_PATH.DELTAS}/mois/${pym}`;
-    
-    // Lire les transactions du mois
+
+    // ── Vérifier si la clôture n'a pas déjà été effectuée ──
+    const existingDelta = await firebase.database().ref(deltaPath).once("value");
+    if(existingDelta.val()) {
+      toast("ℹ️ Ce mois a déjà été clôturé. Consultez l'historique.");
+      trSwitchSub("historique");
+      return;
+    }
+
+    // ── Lire les transactions du mois ──────────────────────
     const snap = await firebase.database().ref(srcPath).once("value");
     const txns = snap.val() || {};
     const txnsList = Object.entries(txns).map(([id,val])=>({id,...val}));
-    if(txnsList.length===0) { toast("ℹ️ Aucune transaction à clôturer."); return; }
-    
-    const tRev = txnsList.filter(t=>t.type==="rev").reduce((s,t)=>s+t.montant,0);
-    const tDep = txnsList.filter(t=>t.type==="dep").reduce((s,t)=>s+t.montant,0);
+
+    if(txnsList.length === 0) {
+      toast("ℹ️ Aucune transaction à clôturer pour ce mois.");
+      return;
+    }
+
+    const tRev  = txnsList.filter(t=>t.type==="rev").reduce((s,t)=>s+t.montant,0);
+    const tDep  = txnsList.filter(t=>t.type==="dep").reduce((s,t)=>s+t.montant,0);
     const delta = tRev - tDep;
-    
-    // Construction d'un update atomique (migrer + delta)
+
+    const nowTs = Date.now(); // fallback si ServerValue non disponible
+
+    // ── Construction de l'update atomique ─────────────────
     const updates = {};
-    // Archiver chaque transaction
     txnsList.forEach(t => {
-      updates[`${archPath}/${t.id}`] = { ...t, archivedAt: firebase.database.ServerValue.TIMESTAMP };
+      updates[`${archPath}/${t.id}`] = { ...t, archivedAt: nowTs };
     });
-    // Supprimer les transactions source
-    updates[srcPath] = null;
-    
-    // Enregistrer le delta
+    updates[srcPath] = null;  // supprimer le mois de TR_Transactions
     updates[deltaPath] = {
-      yearMonth:pym, annee:py, mois:pm, moisNom:TR_MOISL[pm],
-      totalRevenus:tRev, totalDepenses:tDep, delta,
-      type:delta>=0?"surplus":"deficit",
-      nbTransactions:txnsList.length,
-      clotureLe: firebase.database.ServerValue.TIMESTAMP,
+      yearMonth: pym, annee: py, mois: pm,
+      moisNom: TR_MOISL[pm] || "",
+      totalRevenus: tRev, totalDepenses: tDep, delta,
+      type: delta >= 0 ? "surplus" : "deficit",
+      nbTransactions: txnsList.length,
+      clotureLe: nowTs,
       cloturePar: currentUser.uid
     };
-    
+
+    // ── Écriture atomique ──────────────────────────────────
     await firebase.database().ref().update(updates);
+
+    // ── MISE À JOUR OPTIMISTE IMMÉDIATE ────────────────────
+    // Injecter dans trDeltaHistory sans attendre le cycle Firebase
+    const newDelta = { id: pym, ...updates[deltaPath] };
+    const existsIdx = trDeltaHistory.findIndex(d => d.yearMonth === pym);
+    if(existsIdx >= 0) trDeltaHistory[existsIdx] = newDelta;
+    else trDeltaHistory.unshift(newDelta);
+    trDeltaHistory.sort((a,b) => (b.yearMonth||"").localeCompare(a.yearMonth||""));
+
+    // Retirer les transactions archivées de trTransactions (local)
+    trTransactions = trTransactions.filter(t => t.yearMonth !== pym);
+
+    // Synchroniser le dashboard principal
     await trSyncDashboard(pym);
+
     toast(`✅ Clôture effectuée ! Delta : ${delta>=0?"+":""}${fmtCFA(delta)}`);
+
+    // ── Naviguer directement vers l'historique ─────────────
     trRenderPage();
+    setTimeout(() => trSwitchSub("historique"), 150);
+
   } catch(e) {
     console.error("[Trésorerie RTDB] Clôture:", e);
-    toast("❌ Erreur clôture : " + e.message);
+    if(e.message?.includes("NETWORK") || e.code === "NETWORK_ERROR") {
+      toast("❌ Connexion perdue pendant la clôture. Réessayez quand le réseau est stable.");
+    } else {
+      toast("❌ Erreur clôture : " + (e.message || String(e)));
+    }
   }
 }
+
 
 // ──────────────────────────────────────────────────────────
 // SYNCDASHBOARDMASTER (inchangé, mais utilise RTDB)
