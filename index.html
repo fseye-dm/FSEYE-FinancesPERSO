@@ -38,94 +38,100 @@
 }
 [data-theme=dark]{--bg:#0E1015;--card:#161A22;--t1:#F0F4F8;--t2:#8A97AA;--t3:#5A6678;--brd:rgba(255,255,255,.07)}
 [data-theme=ocean]{
-  --bg:#D6F2FF;--card:#FFFFFF;--sidebar:#0A4D68;
-  --t1:#08263A;--t2:#0E5272;--t3:#2A7D9C;
-  --brd:#90D4EF;--brd2:#62BEDE;
-  --sh:0 2px 14px rgba(10,77,104,.13);
-  --green:#056B4D;--gm:#0A9068;--gl:#C8F2E8;
-  --red:#C42424;--rl:#FFE4E4;
-  --blue:#1850B8;--bl:#D8E8FF;
-  --amber:#A06000;--al:#FFF3CC;
-  --teal:#006E8F;--purple:#4B2E8A;--pl:#EAE0FF;
+  --bg:#BCE7F5;--card:#FFFFFF;--sidebar:#0A4D68;
+  --t1:#062130;--t2:#0C4A66;--t3:#246E8C;
+  --brd:#7FC8E5;--brd2:#54B2D6;
+  --sh:0 2px 14px rgba(10,77,104,.16);
+  --green:#046045;--gm:#08855F;--gl:#BEEEE2;
+  --red:#B81F1F;--rl:#FCDADA;
+  --blue:#1548A8;--bl:#CFE0FB;
+  --amber:#925700;--al:#FBEDC0;
+  --teal:#005E7C;--purple:#43287D;--pl:#E2D6FB;
   --sidebar-text:#C8EEFF;--sidebar-active:rgba(255,255,255,.18)
 }
-/* ── Ocean: fond dégradé aquarium ── */
+/* ── Ocean: fond dégradé aquarium (clarté réduite pour lisibilité) ── */
 [data-theme=ocean] body{
-  background:linear-gradient(175deg,#A8E6FF 0%,#C8F2FF 30%,#D6F8FF 60%,#B8F0E8 100%);
+  background:linear-gradient(175deg,#8FD6EC 0%,#A6DFEF 30%,#B8E6F2 60%,#9FDDD6 100%);
   min-height:100vh;
 }
 [data-theme=ocean] .sb{background:linear-gradient(180deg,#052D42 0%,#0A4D68 50%,#0D6080 100%)}
-[data-theme=ocean] .topbar{background:rgba(200,242,255,.96);border-bottom:2px solid #7ECCE8;backdrop-filter:blur(14px)}
-[data-theme=ocean] .kcard{background:rgba(255,255,255,.92);border-color:#90D4EF;box-shadow:0 2px 12px rgba(10,77,104,.10)}
-[data-theme=ocean] .card{background:rgba(255,255,255,.95);border-color:#90D4EF;box-shadow:0 2px 12px rgba(10,77,104,.08)}
-[data-theme=ocean] .cbl{background:rgba(255,255,255,.92);border-color:#90D4EF}
+[data-theme=ocean] .topbar{background:rgba(176,224,240,.97);border-bottom:2px solid #5FB8D8;backdrop-filter:blur(14px)}
+[data-theme=ocean] .kcard{background:#FFFFFF;border-color:#7FC8E5;box-shadow:0 2px 12px rgba(10,77,104,.13)}
+[data-theme=ocean] .card{background:#FFFFFF;border-color:#7FC8E5;box-shadow:0 2px 12px rgba(10,77,104,.11)}
+[data-theme=ocean] .cbl{background:#FFFFFF;border-color:#7FC8E5}
 [data-theme=ocean] .pg{background:transparent}
-/* Textes explicitements renforcés pour contraste */
-[data-theme=ocean] .ct{color:#08263A}
-[data-theme=ocean] .cs{color:#1C6880}
+/* Textes renforcés pour contraste maximal */
+[data-theme=ocean] .ct{color:#062130}
+[data-theme=ocean] .cs{color:#0C4A66}
 [data-theme=ocean] .tot-bar{background:linear-gradient(90deg,#0A4D68,#0D7090)}
-[data-theme=ocean] .tabs .tab{background:rgba(255,255,255,.7);border-color:#90D4EF;color:#0E5272}
+[data-theme=ocean] .tabs .tab{background:rgba(255,255,255,.85);border-color:#7FC8E5;color:#0C4A66}
 [data-theme=ocean] .tabs .tab.on{background:#0A4D68;color:#fff;border-color:#0A4D68}
-[data-theme=ocean] .fld{background:rgba(255,255,255,.9);border-color:#90D4EF;color:#08263A}
-[data-theme=ocean] .fld:focus{border-color:#0D6080;box-shadow:0 0 0 3px rgba(13,96,128,.15)}
-[data-theme=ocean] .btn{border-color:#90D4EF;color:#0E5272}
-[data-theme=ocean] .lbl-s{color:#0E5272;font-weight:700}
-[data-theme=ocean] .tbl th{color:#0A4D68;border-color:#B8E4F5}
-[data-theme=ocean] .tbl td{border-color:#D6F2FF}
+[data-theme=ocean] .fld{background:#FFFFFF;border-color:#7FC8E5;color:#062130}
+[data-theme=ocean] .fld:focus{border-color:#0D6080;box-shadow:0 0 0 3px rgba(13,96,128,.18)}
+[data-theme=ocean] .btn{border-color:#7FC8E5;color:#0C4A66}
+[data-theme=ocean] .lbl-s{color:#0C4A66;font-weight:700}
+[data-theme=ocean] .tbl th{color:#0A4D68;border-color:#A0D8EC}
+[data-theme=ocean] .tbl td{border-color:#C8EAF4}
 
-/* ── POISSONS AQUARIUM — animation multi-couche ── */
-/* Groupe 1 : poissons dérivant à droite (lents) */
+/* ── POISSONS AQUARIUM — nage naturelle (tête dans le sens du mouvement) ── */
+/* Les emojis poissons regardent à GAUCHE par défaut.
+   → Pour nager vers la DROITE : scaleX(-1) (tête à droite)
+   → Pour nager vers la GAUCHE : scaleX(1) (tête à gauche, naturel) */
+
+/* Groupe 1 : poissons nageant vers la DROITE */
 [data-theme=ocean] .main::before{
-  content:"🐠  🐡  🐟";
-  position:fixed;top:20%;left:-200px;
-  font-size:1.8rem;letter-spacing:28px;
-  opacity:.22;pointer-events:none;z-index:0;
-  animation:fishSwimRight 18s linear infinite;
+  content:"🐠   🐡   🐟";
+  position:fixed;top:16%;left:0;
+  font-size:1.7rem;letter-spacing:34px;
+  opacity:.20;pointer-events:none;z-index:0;
   white-space:nowrap;
+  animation:swimRight 30s linear infinite;
 }
-/* Groupe 2 : poissons allant à gauche (plus rapides) */
+/* Groupe 2 : poissons nageant vers la GAUCHE */
 [data-theme=ocean] .main::after{
-  content:"🦑  🐙  🐠";
-  position:fixed;bottom:25%;right:-200px;
-  font-size:1.4rem;letter-spacing:22px;
-  opacity:.18;pointer-events:none;z-index:0;
-  animation:fishSwimLeft 24s linear infinite 6s;
+  content:"🐟   🐠   🐡";
+  position:fixed;bottom:28%;right:0;
+  font-size:1.4rem;letter-spacing:30px;
+  opacity:.17;pointer-events:none;z-index:0;
   white-space:nowrap;
+  animation:swimLeft 38s linear infinite 5s;
 }
-/* Bulles montantes sur le body */
+/* Bulles montantes */
 [data-theme=ocean] body::before{
-  content:"🫧  🫧  🫧  🫧";
-  position:fixed;bottom:5%;left:15%;
-  font-size:1.1rem;letter-spacing:18px;
-  opacity:.15;pointer-events:none;z-index:0;
-  animation:bubblesRise 9s ease-in-out infinite;
+  content:"🫧  🫧  🫧";
+  position:fixed;bottom:6%;left:18%;
+  font-size:1rem;letter-spacing:22px;
+  opacity:.16;pointer-events:none;z-index:0;
+  animation:bubblesRise 8s ease-in-out infinite;
 }
+/* Grand poisson lent en bas, nageant vers la gauche */
 [data-theme=ocean] body::after{
-  content:"🐬  🦈";
-  position:fixed;top:70%;right:-150px;
-  font-size:2.2rem;letter-spacing:24px;
-  opacity:.12;pointer-events:none;z-index:0;
-  animation:fishSwimLeft 32s linear infinite 12s;
+  content:"🐬";
+  position:fixed;top:72%;right:0;
+  font-size:2.1rem;
+  opacity:.13;pointer-events:none;z-index:0;
+  animation:swimLeft 46s linear infinite 10s;
 }
-@keyframes fishSwimRight{
-  0%  {transform:translateX(0)   translateY(0)  scaleX(1)}
-  45% {transform:translateX(60vw) translateY(-30px) scaleX(1)}
-  50% {transform:translateX(65vw) translateY(-30px) scaleX(1)}
-  55% {transform:translateX(65vw) translateY(-30px) scaleX(-1)}
-  95% {transform:translateX(5vw)  translateY(0)  scaleX(-1)}
-  100%{transform:translateX(0)   translateY(0)  scaleX(1)}
+/* Nage vers la DROITE : départ hors écran gauche → sortie hors écran droite, tête à droite */
+@keyframes swimRight{
+  0%   {transform:translateX(-25vw) translateY(0)    scaleX(-1)}
+  25%  {transform:translateX(12vw)  translateY(-18px) scaleX(-1)}
+  50%  {transform:translateX(50vw)  translateY(8px)   scaleX(-1)}
+  75%  {transform:translateX(88vw)  translateY(-12px) scaleX(-1)}
+  100% {transform:translateX(125vw) translateY(0)    scaleX(-1)}
 }
-@keyframes fishSwimLeft{
-  0%  {transform:translateX(0)    translateY(0)  scaleX(-1)}
-  45% {transform:translateX(-65vw) translateY(20px) scaleX(-1)}
-  50% {transform:translateX(-65vw) translateY(20px) scaleX(1)}
-  95% {transform:translateX(-5vw) translateY(0)  scaleX(1)}
-  100%{transform:translateX(0)   translateY(0)  scaleX(-1)}
+/* Nage vers la GAUCHE : départ hors écran droite → sortie hors écran gauche, tête à gauche */
+@keyframes swimLeft{
+  0%   {transform:translateX(25vw)   translateY(0)    scaleX(1)}
+  25%  {transform:translateX(-12vw)  translateY(15px) scaleX(1)}
+  50%  {transform:translateX(-50vw)  translateY(-10px) scaleX(1)}
+  75%  {transform:translateX(-88vw)  translateY(12px) scaleX(1)}
+  100% {transform:translateX(-125vw) translateY(0)    scaleX(1)}
 }
 @keyframes bubblesRise{
-  0%  {opacity:.15;transform:translateY(0)   scale(1)}
-  50% {opacity:.22;transform:translateY(-35px) scale(1.06)}
-  100%{opacity:.05;transform:translateY(-80px) scale(.8)}
+  0%   {opacity:.16;transform:translateY(0)    scale(1)}
+  50%  {opacity:.22;transform:translateY(-30px) scale(1.05)}
+  100% {opacity:.04;transform:translateY(-70px) scale(.8)}
 }
 html{scroll-behavior:smooth}
 body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(--t1);font-size:14px;min-height:100vh;min-height:100dvh;-webkit-font-smoothing:antialiased;overflow-x:hidden}
@@ -186,6 +192,10 @@ input,button,select{font-family:inherit;-webkit-tap-highlight-color:transparent}
 .topbar{position:sticky;top:0;z-index:40;background:rgba(242,240,235,.93);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-bottom:1px solid var(--brd);padding:10px 20px;padding-top:max(10px,var(--sat));display:flex;align-items:center;justify-content:space-between;gap:10px}
 [data-theme=dark] .topbar{background:rgba(14,16,21,.93)}
 /* ── FIN thème Ocean ── */
+/* Champs figés (mode lecture seule Saisie Mensuelle) */
+.saisie-frozen{opacity:.72;cursor:not-allowed!important;background:rgba(0,0,0,.02)!important}
+[data-theme=dark] .saisie-frozen{background:rgba(255,255,255,.03)!important}
+input.saisie-frozen,textarea.saisie-frozen{color:var(--t2)!important}
 .pg-ttl{font-family:'DM Serif Display',serif;font-size:1rem;color:var(--t1)}
 .mpills{display:flex;gap:2px;flex-wrap:wrap}
 .mp{padding:3px 8px;border-radius:99px;font-size:.63rem;font-weight:700;cursor:pointer;border:1.5px solid var(--brd);color:var(--t2);transition:all .13s;min-height:28px;background:transparent}
@@ -1858,6 +1868,41 @@ function renderAllCharts() {
 // SAISIE MENSUELLE
 // ═══════════════════════════════════════════════════════════════
 let saisieTab = "rev";
+// ── État de verrouillage de la Saisie Mensuelle ──────────────
+// Figé par défaut (true) pour protéger les données. Persisté dans localStorage.
+let saisieLocked = (function(){
+  try { const v = localStorage.getItem("fseye_saisie_locked"); return v === null ? true : v === "1"; }
+  catch(e){ return true; }
+})();
+function setSaisieLocked(locked) {
+  saisieLocked = locked;
+  try { localStorage.setItem("fseye_saisie_locked", locked ? "1" : "0"); } catch(e){}
+}
+function toggleSaisieLock() {
+  setSaisieLocked(!saisieLocked);
+  renderSaisie();
+  toast(saisieLocked ? "🔒 Saisie figée (lecture seule)" : "✏️ Saisie déverrouillée — vous pouvez modifier");
+}
+// Applique l'état figé : désactive tous les champs de saisie de la page
+function applySaisieLockState() {
+  const pg = document.getElementById("pg-saisie");
+  if(!pg) return;
+  const fields = pg.querySelectorAll("input, textarea, select, button");
+  fields.forEach(el => {
+    // Ne jamais désactiver les boutons de navigation / verrouillage / onglets
+    if(el.classList.contains("tab") ||
+       el.id === "saisie-lock-btn" ||
+       el.closest(".tabs") ||
+       el.dataset.nolock === "1") return;
+    if(saisieLocked) {
+      el.setAttribute("disabled","disabled");
+      el.classList.add("saisie-frozen");
+    } else {
+      el.removeAttribute("disabled");
+      el.classList.remove("saisie-frozen");
+    }
+  });
+}
 function renderSaisie() {
   const mi = MK.indexOf(mo);
   const pg = document.getElementById("pg-saisie");
@@ -1866,13 +1911,25 @@ function renderSaisie() {
   const bal = rev - mt.actual;
 
   pg.innerHTML = `
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:8px;flex-wrap:wrap">
       <div>
         <div style="font-size:.59rem;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--t3)">Saisie mensuelle</div>
         <div style="font-size:.96rem;font-weight:800">${MN[mi]} ${yr}</div>
       </div>
-      <button class="btn bp bsm" onclick="saveSaisie()">💾 Sauvegarder</button>
+      <div style="display:flex;gap:7px;align-items:center">
+        <button id="saisie-lock-btn" data-nolock="1" onclick="toggleSaisieLock()"
+          style="border:1.5px solid ${saisieLocked?'#C97B0A':'#1A6B3C'};background:${saisieLocked?'var(--al)':'var(--gl)'};color:${saisieLocked?'var(--amber)':'var(--green)'};border-radius:9px;padding:7px 13px;font-family:inherit;font-weight:800;font-size:.74rem;cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:all .16s">
+          ${saisieLocked?'🔒 Figé':'🔓 Modifiable'}
+        </button>
+        <button class="btn bp bsm" data-nolock="1" onclick="saveSaisie()" ${saisieLocked?'style="opacity:.4;pointer-events:none"':''}>💾 Sauvegarder</button>
+      </div>
     </div>
+
+    ${saisieLocked?`<div style="background:var(--al);border:1px solid var(--amber);border-radius:9px;padding:8px 12px;margin-bottom:11px;font-size:.7rem;color:var(--amber);display:flex;align-items:center;gap:7px">
+      🔒 <span><strong>Mode lecture seule.</strong> Appuyez sur <strong>« 🔒 Figé »</strong> pour déverrouiller et modifier les écritures.</span>
+    </div>`:`<div style="background:var(--gl);border:1px solid var(--green);border-radius:9px;padding:8px 12px;margin-bottom:11px;font-size:.7rem;color:var(--green);display:flex;align-items:center;gap:7px">
+      ✏️ <span><strong>Mode saisie actif.</strong> Pensez à <strong>« 🔒 Figer »</strong> après vos modifications pour protéger vos données.</span>
+    </div>`}
 
     <!-- Summary -->
     <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:12px">
@@ -1906,6 +1963,7 @@ function renderSaisie() {
   `;
 
   renderSaisieTab();
+  applySaisieLockState();
 }
 
 function switchSaisieTab(t) {
@@ -1914,6 +1972,7 @@ function switchSaisieTab(t) {
     btn.classList.toggle("on", ["rev","thies","dakar","dette","flux","recap"][i] === t);
   });
   renderSaisieTab();
+  applySaisieLockState();
 }
 
 function renderSaisieTab() {
@@ -1934,6 +1993,7 @@ function renderSaisieTab() {
   } else if(saisieTab==="recap") {
     renderSaisieRecap(c);
   }
+  applySaisieLockState(); // réappliquer le gel après tout re-rendu de contenu
 }
 
 // Onglet FLUX TRÉSORERIE — affiche les transactions Trésorerie du mois chronologiquement
@@ -2317,6 +2377,7 @@ function renderSaisieRecap(c) {
 }
 
 function saveSaisie() {
+  if(saisieLocked) { toast("🔒 Déverrouillez d'abord la saisie (bouton Figé)."); return; }
   // Already auto-saved via upEntry — just trigger sync
   scheduleSync(); // Sauvegarde silencieuse
 }
@@ -4290,26 +4351,20 @@ function trSubscribeDeltas() {
 }
 
 function trLoadCategories() {
-  // Source unique : prefs.cats (module Paramètres principal)
-  // Initialiser avec les catégories par défaut si absent
+  // Source UNIQUE : prefs.cats (module Paramètres principal)
+  // Les revenus ET les dépenses utilisent EXACTEMENT la même liste configurée par l'utilisateur.
   if(!prefs.cats || prefs.cats.length === 0) {
     prefs.cats = DEFAULT_CATS_LIST.map(c => ({id:c.id, ic:c.ic, name:c.name}));
   }
-  // Convertir prefs.cats → format trCategories (type "both" pour tout)
+  // Convertir prefs.cats → format trCategories (type "both" : valable revenus + dépenses)
   trCategories = prefs.cats.map(c => ({
     id:   c.id   || c.nom || "cat",
     nom:  c.name || c.nom || c.id,
     ic:   c.ic   || "📦",
     type: "both"
   }));
-  // Ajouter les catégories de revenus spécifiques si absentes
-  const revCats = [
-    {id:"sal",     nom:"Salaire",        ic:"💼", type:"rev"},
-    {id:"fre",     nom:"Freelance",      ic:"💻", type:"rev"},
-    {id:"inv",     nom:"Investissement", ic:"📈", type:"rev"},
-    {id:"aut_rev", nom:"Autres revenus", ic:"💰", type:"rev"}
-  ];
-  revCats.forEach(rc => { if(!trCategories.find(c=>c.id===rc.id)) trCategories.push(rc); });
+  // PLUS de catégories fantômes (Salaire/Freelance/Investissement/Autres revenus) :
+  // la liste affichée pour un Revenu est désormais identique à celle d'une Dépense.
   trPopulateCatSelect();
 }
 
@@ -4513,8 +4568,16 @@ function trRenderSub() {
 function trRenderDashboard(c) {
   const today = new Date();
   const isCurrentMonth = (trYear===today.getFullYear() && trMonth===today.getMonth()+1);
-  const canCloture = !isCurrentMonth || today.getDate() === 1;
   const isDesktop = window.innerWidth >= 768;
+
+  // ── LOGIQUE CLÔTURE CORRIGÉE ──────────────────────────────
+  // On clôture le MOIS AFFICHÉ (pas le mois précédent).
+  // Conditions : le mois affiché doit être terminé (passé) ET pas déjà clôturé.
+  const displayedYM = trYM(trYear, trMonth);
+  const todayYM     = trYM(today.getFullYear(), today.getMonth()+1);
+  const isPastMonth = displayedYM < todayYM;            // comparaison "YYYY-MM"
+  const alreadyClosed = trDeltaHistory.some(d => d.yearMonth === displayedYM);
+  const canCloture  = isPastMonth && !alreadyClosed;
 
   c.innerHTML = `
     ${!isDesktop ? `
@@ -4557,10 +4620,13 @@ function trRenderDashboard(c) {
     </div>` : ""}
 
     ${canCloture ? `<div class="tr-cloture-card">
-      <div style="font-weight:800;font-size:.88rem;margin-bottom:4px;opacity:.9">📅 Clôture de mois disponible</div>
-      <div style="font-size:.7rem;opacity:.7;margin-bottom:11px;line-height:1.5">Archiver les transactions du mois précédent et mettre à jour les agrégats.</div>
-      <button class="tr-cloture-btn" onclick="trOpenClotureConfirm()">🔒 Clôturer ${TR_MOISL[trMonth===1?12:trMonth-1]}</button>
-    </div>` : ""}
+      <div style="font-weight:800;font-size:.88rem;margin-bottom:4px;opacity:.9">📅 Clôture de ${TR_MOISL[trMonth]} ${trYear}</div>
+      <div style="font-size:.7rem;opacity:.7;margin-bottom:11px;line-height:1.5">Archiver les transactions de ce mois et enregistrer le delta dans l'historique.</div>
+      <button class="tr-cloture-btn" onclick="trOpenClotureConfirm()">🔒 Clôturer ${TR_MOISL[trMonth]} ${trYear}</button>
+    </div>` : (alreadyClosed ? `<div class="tr-cloture-card" style="background:linear-gradient(135deg,#0F4A27,#1a7a45)">
+      <div style="font-weight:800;font-size:.85rem;opacity:.95">✅ ${TR_MOISL[trMonth]} ${trYear} déjà clôturé</div>
+      <div style="font-size:.68rem;opacity:.75;margin-top:3px">Consultez le détail dans l'onglet Historique.</div>
+    </div>` : "")}
 
     <!-- Badge liaison -->
     <div style="margin-top:10px;font-size:.65rem;color:var(--t3);display:flex;align-items:center;gap:5px;justify-content:center">
@@ -5216,7 +5282,8 @@ function pushToFirebaseAsync() {
 
 // ──────────────────────────────────────────────────────────
 function trOpenClotureConfirm() {
-  const pym = trPrevYM();
+  // Clôturer le MOIS AFFICHÉ (corrigé : plus trPrevYM)
+  const pym = trYM(trYear, trMonth);
   const [py,pm] = pym.split("-").map(Number);
   const prevTxns = trTransactions.filter(t=>t.yearMonth===pym);
   const pRev = prevTxns.filter(t=>t.type==="rev").reduce((s,t)=>s+t.montant,0);
@@ -5235,7 +5302,8 @@ function trOpenClotureConfirm() {
 }
 
 async function trExecuteCloture() {
-  const pym = trPrevYM();
+  // Clôturer le MOIS AFFICHÉ (corrigé : plus trPrevYM)
+  const pym = trYM(trYear, trMonth);
   const [py,pm] = pym.split("-").map(Number);
   trCloseModal("tr-modal-cloture");
 
