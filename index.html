@@ -497,6 +497,8 @@ input.saisie-frozen,textarea.saisie-frozen{color:var(--t2)!important}
   position:relative;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.05);
 }
 .tr-txn-item::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;border-radius:11px 0 0 11px}
+.tr-txn-critical{border-color:rgba(204,51,51,.4)!important;background:rgba(204,51,51,.03)}
+.tr-txn-critical::before{width:4px!important;background:var(--red)!important}
 .tr-txn-rev::before{background:var(--green)}
 .tr-txn-dep::before{background:var(--red)}
 .tr-txn-ic{width:36px;height:36px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0}
@@ -1574,6 +1576,10 @@ function getRevTotal(y, m) {
   const k = y+"_"+m;
   return (revs[k]||[]).reduce((s,r)=>s+(parseFloat(r.amount)||0),0);
 }
+// Total annuel des revenus (somme des 12 mois depuis revs)
+function getYearRevTotal(y) {
+  return MK.reduce((s,m)=>s+getRevTotal(y,m),0);
+}
 function getYearTotal(y, field) {
   // Exclure les entrées TR synthétiques des totaux annuels (graphiques historique/tendance)
   return getEntries(y).filter(e=>!e._isTresorerie).reduce((s,e)=>s+(e[field]||0),0);
@@ -1623,6 +1629,18 @@ function renderDashboard() {
   if(overruns.length>0) {
     const excess = overruns.reduce((s,e)=>s+(getMD(e,mo).actual-getMD(e,mo).planned),0);
     alertHtml += `<div class="alert-b al-r">🚨 <div><strong>${overruns.length} rubrique(s) dépassent le seuil (${thresh}%)</strong> — Excédent : ${fmtCFA(excess)}</div></div>`;
+  }
+
+  // ── NOUVEAU : Alerte déficit (dépenses > revenus) ──
+  if(rev > 0 && mtAll.actual > rev) {
+    alertHtml += `<div class="alert-b al-r">📉 <div><strong>Mois déficitaire</strong> — Les dépenses (${fmtCFA(mtAll.actual)}) dépassent les revenus (${fmtCFA(rev)}). Déficit : <strong>${fmtCFA(mtAll.actual-rev)}</strong></div></div>`;
+  }
+
+  // ── NOUVEAU : Alerte dépassement de seuil de catégorie ──
+  const catOverruns = getCatOverruns(yr, mo);
+  if(catOverruns.length > 0) {
+    const names = catOverruns.slice(0,3).map(o=>getCatLabel(o.catId)).join(", ");
+    alertHtml += `<div class="alert-b al-w">🎯 <div><strong>${catOverruns.length} catégorie(s) au-dessus du seuil</strong> : ${names}${catOverruns.length>3?"…":""} <span style="font-size:.66rem;opacity:.8">(voir Coach Financier)</span></div></div>`;
   }
 
   const pg = document.getElementById("pg-dashboard");
@@ -1677,7 +1695,7 @@ function renderDashboard() {
     </div>
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-      <div class="card"><div class="card-hd"><div><div class="ct">Tendance annuelle</div><div class="cs">Planifié vs Réalisé (M CFA)</div></div></div><div class="cp" style="height:170px"><canvas id="ch-trend"></canvas></div></div>
+      <div class="card"><div class="card-hd"><div><div class="ct">Tendance annuelle</div><div class="cs">Revenus · Planifié · Réalisé (M CFA)</div></div></div><div class="cp" style="height:170px"><canvas id="ch-trend"></canvas></div></div>
       <div class="card"><div class="card-hd"><div><div class="ct">Par centre</div><div class="cs">Répartition empilée</div></div></div><div class="cp" style="height:170px"><canvas id="ch-ctr"></canvas></div></div>
     </div>
   `;
@@ -1825,30 +1843,44 @@ function renderDashCharts() {
     });
   }
 
-  // Tendance annuelle
+  // Tendance annuelle — 3 séries : Revenus (courbe), Planifié + Réalisé (barres)
   const ctxT = document.getElementById("ch-trend");
   if(ctxT) charts["ch-trend"] = new Chart(ctxT, {
-    type:"bar", data:{labels:yrs, datasets:[
-      {label:"Planifié",data:yrs.map(y=>getYearTotal(y,"total_planned")/1e6),backgroundColor:"rgba(59,82,196,.2)",borderColor:"#2D4FC8",borderWidth:1.5,borderRadius:4},
-      {label:"Réalisé", data:yrs.map(y=>getYearTotal(y,"total_actual")/1e6),  backgroundColor:"rgba(26,107,60,.35)",borderColor:"#1A6B3C",borderWidth:1.5,borderRadius:4}
-    ]}, options:{responsive:true,maintainAspectRatio:false,
-      plugins:{legend:{labels:{font:{size:9},color:"var(--t2)"}}},
+    type:"bar",
+    data:{labels:yrs, datasets:[
+      {type:"line", label:"Revenus",  data:yrs.map(y=>getYearRevTotal(y)/1e6),
+       borderColor:"#FFC000", backgroundColor:"#FFC000", borderWidth:2.5,
+       pointRadius:3, pointBackgroundColor:"#FFC000", tension:.3, fill:false, order:0},
+      {label:"Planifié", data:yrs.map(y=>getYearTotal(y,"total_planned")/1e6),
+       backgroundColor:"rgba(45,79,200,.25)", borderColor:"#2D4FC8", borderWidth:1.5, borderRadius:4, order:1},
+      {label:"Réalisé",  data:yrs.map(y=>getYearTotal(y,"total_actual")/1e6),
+       backgroundColor:"rgba(26,107,60,.35)", borderColor:"#1A6B3C", borderWidth:1.5, borderRadius:4, order:1}
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{labels:{font:{size:9},color:"var(--t2)",boxWidth:10}},
+        tooltip:{callbacks:{label:ctx=>`${ctx.dataset.label}: ${ctx.raw.toFixed(2)} M CFA`}}},
       scales:{x:{grid:{display:false},ticks:{color:"var(--t2)",font:{size:8}}},y:{grid:{color:"rgba(0,0,0,.05)"},ticks:{color:"var(--t2)",font:{size:8},callback:v=>v+"M"}}}}
   });
 
-  // Répartition empilée
+  // Répartition empilée par centre + barre Revenus (non empilée) par année
   const ctxC = document.getElementById("ch-ctr");
   if(ctxC) charts["ch-ctr"] = new Chart(ctxC, {
     type:"bar", data:{labels:yrs,
-      datasets:CTRS.map((ctr,i)=>({
-        label:getCtrName(ctr), stack:"s",
-        data:yrs.map(y=>{
-          const base=getEntries(y).filter(e=>e.centre===ctr&&!e._isTresorerie).reduce((s,e)=>s+e.total_actual,0);
-          const tr=ctr==="AUTRES DEPENSES"?getEntries(y).filter(e=>e._isTresorerie).reduce((s,e)=>s+e.total_actual,0):0;
-          return (base+tr)/1e6;
-        }),
-        backgroundColor:colCtr[i]+"99",borderColor:colCtr[i],borderWidth:1,borderRadius:2
-      }))
+      datasets:[
+        ...CTRS.map((ctr,i)=>({
+          label:getCtrName(ctr), stack:"dep",
+          data:yrs.map(y=>{
+            const base=getEntries(y).filter(e=>e.centre===ctr&&!e._isTresorerie).reduce((s,e)=>s+e.total_actual,0);
+            const tr=ctr==="AUTRES DEPENSES"?getEntries(y).filter(e=>e._isTresorerie).reduce((s,e)=>s+e.total_actual,0):0;
+            return (base+tr)/1e6;
+          }),
+          backgroundColor:colCtr[i]+"99",borderColor:colCtr[i],borderWidth:1,borderRadius:2
+        })),
+        // Barre Revenus séparée (stack propre) pour comparaison visuelle
+        {label:"Revenus", stack:"rev",
+          data:yrs.map(y=>getYearRevTotal(y)/1e6),
+          backgroundColor:"#FFC00099", borderColor:"#FFC000", borderWidth:1.5, borderRadius:2}
+      ]
     }, options:{responsive:true,maintainAspectRatio:false,
       plugins:{legend:{labels:{font:{size:9},color:"var(--t2)",boxWidth:9}},
         tooltip:{callbacks:{label:ctx=>`${ctx.dataset.label}: ${(ctx.raw).toFixed(2)} M CFA`}}},
@@ -1906,9 +1938,10 @@ function applySaisieLockState() {
 function renderSaisie() {
   const mi = MK.indexOf(mo);
   const pg = document.getElementById("pg-saisie");
-  const mt = getMonthTotals(yr, mo);
+  const mt = getMonthTotals(yr, mo);           // hors TR (pour le "planifié")
+  const mtAll = getMonthTotalsAll(yr, mo);     // avec TR (pour le solde réel)
   const rev = getRevTotal(yr, mo);
-  const bal = rev - mt.actual;
+  const bal = rev - mtAll.actual;              // Solde réel = Revenus - TOUTES les dépenses (TR inclus)
 
   pg.innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:8px;flex-wrap:wrap">
@@ -1931,17 +1964,26 @@ function renderSaisie() {
       ✏️ <span><strong>Mode saisie actif.</strong> Pensez à <strong>« 🔒 Figer »</strong> après vos modifications pour protéger vos données.</span>
     </div>`}
 
-    <!-- Summary -->
-    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:12px">
+    <!-- Summary — 5 KPIs -->
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:4px">
       ${[
         {lb:"Revenus", v:fmtCFA(rev), col:"#C97B0A"},
         {lb:"Planifié",v:fmtCFA(mt.planned),col:"#2D4FC8"},
-        {lb:"Réalisé", v:fmtCFA(mt.actual), col:mt.actual>mt.planned?"#CC3333":"#1A6B3C"},
-        {lb:"Solde",   v:rev>0?(sgn(bal)+fmtCFA(Math.abs(bal))):"—",col:bal>=0?"#1A6B3C":"#CC3333"}
+        {lb:"Réalisé", v:fmtCFA(mt.actual), col:mt.actual>mt.planned?"#CC3333":"#1A6B3C"}
       ].map(x=>`<div class="card" style="padding:9px 12px;display:flex;justify-content:space-between;align-items:center">
         <span style="font-size:.63rem;color:var(--t2);font-weight:600">${x.lb}</span>
         <span class="mono" style="font-size:.86rem;font-weight:900;color:${x.col}">${x.v}</span>
       </div>`).join("")}
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
+      <div class="card" style="padding:9px 12px;display:flex;justify-content:space-between;align-items:center">
+        <span style="font-size:.63rem;color:var(--t2);font-weight:600">Solde planifié</span>
+        <span class="mono" style="font-size:.82rem;font-weight:800;color:${(rev-mt.planned)>=0?"#1A6B3C":"#CC3333"}">${rev>0?(sgn(rev-mt.planned)+fmtCFA(Math.abs(rev-mt.planned))):"—"}</span>
+      </div>
+      <div class="card" style="padding:9px 12px;display:flex;justify-content:space-between;align-items:center;border:1.5px solid ${bal>=0?"var(--green)":"var(--red)"}">
+        <span style="font-size:.63rem;font-weight:700;color:${bal>=0?"var(--green)":"var(--red)"}">Solde réel</span>
+        <span class="mono" style="font-size:.86rem;font-weight:900;color:${bal>=0?"#1A6B3C":"#CC3333"}">${rev>0?(sgn(bal)+fmtCFA(Math.abs(bal))):"—"}</span>
+      </div>
     </div>
 
     <!-- Tabs — noms dynamiques via getCtrName() pour synchronisation avec les Paramètres -->
@@ -2396,11 +2438,29 @@ function renderAnalyse() {
   const lR = ta>0 ? entries.filter(e=>e.categorie==="LOISIRS").reduce((s,e)=>s+e.total_actual,0)/ta : 0;
   const thresh = getThresh();
 
-  let score = 60;
+  // ── NOUVEAU : Score basé sur Revenus − Dépenses (taux d'épargne) ──
+  const revAnnual   = getYearRevTotal(yr);               // total revenus annuels
+  const depTotal    = ta + trAnnual;                     // dépenses réelles (TR inclus)
+  const epargne     = revAnnual - depTotal;              // épargne dégagée
+  const tauxEpargne = revAnnual>0 ? epargne/revAnnual : 0;// taux d'épargne annuel
+  const epargneMois = epargne/12;
+  const revMois     = revAnnual/12;
+  const tauxEpMois  = revMois>0 ? epargneMois/revMois : 0;
+
+  // Score /100 axé sur l'épargne (indicateur principal)
+  let score = 40;
+  // (1) Taux d'épargne — poids majeur (jusqu'à +40)
+  if(tauxEpargne>=.30) score+=40;
+  else if(tauxEpargne>=.20) score+=32;
+  else if(tauxEpargne>=.10) score+=22;
+  else if(tauxEpargne>=.05) score+=12;
+  else if(tauxEpargne>=0)   score+=4;
+  else score-=20;  // épargne négative = déficit
+  // (2) Stabilité budgétaire (écart planifié/réalisé) — sous-indicateur (jusqu'à +12)
   const ecR = tp>0?Math.abs((ta-tp)/tp):0;
-  if(ecR<.08)score+=18;else if(ecR<.15)score+=10;else if(ecR<.25)score+=3;else score-=12;
-  if(dR<.15)score+=10;else if(dR<.25)score+=3;else if(dR>.4)score-=15;
-  if(lR<.08)score+=7;else if(lR<.15)score+=2;else if(lR>.3)score-=8;
+  if(ecR<.08)score+=12;else if(ecR<.15)score+=7;else if(ecR<.25)score+=2;else score-=8;
+  // (3) Charge de dettes — sous-indicateur (jusqu'à +8)
+  if(dR<.15)score+=8;else if(dR<.25)score+=3;else if(dR>.4)score-=10;
   score=Math.min(100,Math.max(0,Math.round(score)));
   const sCol=score>=70?"#1A6B3C":score>=50?"#C97B0A":"#CC3333";
   const sLbl=score>=80?"Excellent":score>=65?"Bon":score>=50?"Acceptable":score>=35?"Fragile":"Critique";
@@ -2413,15 +2473,37 @@ function renderAnalyse() {
 
   // Recs
   const recs=[];
+  if(tauxEpargne>=.15) recs.push({ic:"🏆",col:"#1A6B3C",bg:"#E8F5EE",ti:"Excellente épargne",bd:`Taux d'épargne de <strong>${(tauxEpargne*100).toFixed(1)}%</strong>. Continuez et diversifiez (placements, tontines).`});
+  else if(tauxEpargne>=0) recs.push({ic:"📈",col:"#C97B0A",bg:"#FEF3DC",ti:"Épargne à renforcer",bd:`Taux d'épargne de <strong>${(tauxEpargne*100).toFixed(1)}%</strong>. Visez au moins 10-15% des revenus.`});
+  else recs.push({ic:"🚨",col:"#CC3333",bg:"#FEE8E8",ti:"Déficit — dépenses > revenus",bd:`Déficit de <strong>${fmtCFA(Math.abs(epargne))}</strong> cette année. Réduisez les postes non-essentiels en priorité.`});
   if(ta<tp) recs.push({ic:"✅",col:"#1A6B3C",bg:"#E8F5EE",ti:"Budget maîtrisé",bd:`Sous budget de <strong>${fmtCFA(tp-ta)}</strong>. Affectez l'excédent à votre fonds d'urgence.`});
   else recs.push({ic:"📋",col:"#CC3333",bg:"#FEE8E8",ti:"Dépassement budgétaire",bd:`Dépassement de <strong>${fmtCFA(ta-tp)}</strong>. Identifiez les 3 postes les plus dépassés.`});
   if(dR>.3) recs.push({ic:"💳",col:"#CC3333",bg:"#FEE8E8",ti:"Charge de dettes élevée",bd:`Les remboursements représentent <strong>${(dR*100).toFixed(0)}%</strong>. Priorité au remboursement.`});
-  if(lR>.15) recs.push({ic:"🎉",col:"#C97B0A",bg:"#FEF3DC",ti:"Loisirs à rationaliser",bd:`Les loisirs pèsent <strong>${(lR*100).toFixed(0)}%</strong>. Provisionnez <strong>${fmtCFA(Math.round(entries.filter(e=>e.categorie==="LOISIRS").reduce((s,e)=>s+e.total_actual,0)/12))}/mois</strong>.`});
-  recs.push({ic:"🏦",col:"#1A6B3C",bg:"#E8F5EE",ti:"Objectif épargne",bd:`Fonds d'urgence cible : <strong>${fmtCFA(Math.round(ta/12*3))}</strong> à <strong>${fmtCFA(Math.round(ta/12*6))}</strong>. Versez 10-15% de vos revenus automatiquement.`});
+  recs.push({ic:"🏦",col:"#1A6B3C",bg:"#E8F5EE",ti:"Objectif fonds d'urgence",bd:`Cible : <strong>${fmtCFA(Math.round(depTotal/12*3))}</strong> à <strong>${fmtCFA(Math.round(depTotal/12*6))}</strong> (3-6 mois de dépenses). À votre rythme actuel : ${epargneMois>0?`atteint en <strong>${Math.ceil(depTotal/12*3/epargneMois)} mois</strong>`:"non atteignable sans épargne positive"}.`});
 
   const pg = document.getElementById("pg-analyse");
   pg.innerHTML = `
     <div style="font-weight:800;font-size:.93rem;margin-bottom:12px">Analyse & Rapport ${yr}</div>
+
+    <!-- Bandeau ÉPARGNE (indicateur principal) -->
+    <div class="card" style="padding:14px 16px;margin-bottom:12px;border-left:4px solid ${epargne>=0?"#1A6B3C":"#CC3333"}">
+      <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px">
+        <div>
+          <div style="font-size:.58rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--t3)">Taux d'épargne annuel</div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:1.35rem;font-weight:900;color:${tauxEpargne>=0?"#1A6B3C":"#CC3333"}">${(tauxEpargne*100).toFixed(1)}%</div>
+          <div style="font-size:.63rem;color:var(--t3)">${epargne>=0?"Épargne":"Déficit"} : ${sgn(epargne)}${fmtCFA(Math.abs(epargne))}</div>
+        </div>
+        <div>
+          <div style="font-size:.58rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--t3)">Taux d'épargne mensuel</div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:1.35rem;font-weight:900;color:${tauxEpMois>=0?"#1A6B3C":"#CC3333"}">${(tauxEpMois*100).toFixed(1)}%</div>
+          <div style="font-size:.63rem;color:var(--t3)">${epargneMois>=0?"Épargne":"Déficit"}/mois : ${sgn(epargneMois)}${fmtCFA(Math.abs(Math.round(epargneMois)))}</div>
+        </div>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-top:10px;padding-top:9px;border-top:1px solid var(--brd);font-size:.66rem;color:var(--t2)">
+        <span>💰 Revenus : <strong style="color:#C97B0A">${fmtCFA(revAnnual)}</strong></span>
+        <span>📉 Dépenses : <strong style="color:var(--red)">${fmtCFA(depTotal)}</strong></span>
+      </div>
+    </div>
 
     <div style="display:grid;grid-template-columns:auto 1fr;gap:12px;margin-bottom:12px">
       <div class="card" style="padding:18px;text-align:center;min-width:145px">
@@ -2436,6 +2518,7 @@ function renderAnalyse() {
           <div class="score-num"><div style="font-size:1.5rem;color:${sCol}">${score}</div><div style="font-size:.54rem;color:var(--t3)">/100</div></div>
         </div>
         <div style="font-size:.73rem;font-weight:700;color:${sCol}">${sLbl}</div>
+        <div style="font-size:.56rem;color:var(--t3);margin-top:4px;line-height:1.4">Basé sur l'épargne<br>+ stabilité + dettes</div>
       </div>
 
       <div class="card" style="padding:13px 14px">
@@ -2454,6 +2537,46 @@ function renderAnalyse() {
             </div>`;
           }).join("")}
         </div>
+        <!-- Sous-indicateurs planifié/réalisé conservés -->
+        <div style="display:flex;justify-content:space-around;margin-top:10px;padding-top:9px;border-top:1px solid var(--brd)">
+          <div style="text-align:center"><div style="font-size:.55rem;color:var(--t3)">Planifié</div><div class="mono" style="font-size:.72rem;font-weight:700;color:var(--blue)">${fmtCFA(tp)}</div></div>
+          <div style="text-align:center"><div style="font-size:.55rem;color:var(--t3)">Réalisé</div><div class="mono" style="font-size:.72rem;font-weight:700;color:${ta>tp?"var(--red)":"var(--green)"}">${fmtCFA(ta)}</div></div>
+          <div style="text-align:center"><div style="font-size:.55rem;color:var(--t3)">Écart</div><div class="mono" style="font-size:.72rem;font-weight:700;color:${ta<=tp?"var(--green)":"var(--red)"}">${sgn(ta-tp)}${fmtCFA(Math.abs(ta-tp))}</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+      <!-- Graphique en anneau : répartition dépenses par catégorie (mois sélectionné) -->
+      <div class="card" style="padding:13px 14px">
+        <div style="font-weight:700;font-size:.82rem;margin-bottom:4px">🍩 Répartition par catégorie</div>
+        <div style="font-size:.62rem;color:var(--t3);margin-bottom:8px">${MNF[MK.indexOf(mo)]} ${yr} — dépenses réelles</div>
+        <div style="height:170px;position:relative"><canvas id="ch-analyse-donut"></canvas></div>
+      </div>
+
+      <!-- Classement catégories par montant décroissant -->
+      <div class="card" style="padding:13px 14px">
+        <div style="font-weight:700;font-size:.82rem;margin-bottom:8px">📊 Top catégories (${MNF[MK.indexOf(mo)]})</div>
+        ${(()=>{
+          const allCats = prefs.cats || DEFAULT_CATS_LIST;
+          const catTotals = allCats.map(cat=>{
+            const amt = getCatMonthActual(yr, mo, cat.id);
+            return {id:cat.id, name:cat.name, ic:cat.ic, amt};
+          }).filter(c=>c.amt>0).sort((a,b)=>b.amt-a.amt);
+          const maxAmt = catTotals[0]?.amt || 1;
+          if(catTotals.length===0) return '<div style="color:var(--t3);font-size:.76rem">Aucune dépense ce mois</div>';
+          return catTotals.map((ct,i)=>`<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--brd)">
+            <span style="font-size:.7rem;font-weight:800;color:var(--t3);width:16px">${i+1}</span>
+            <span style="font-size:.85rem">${ct.ic}</span>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:.72rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${ct.name}</div>
+              <div style="height:4px;border-radius:2px;background:var(--brd);margin-top:3px">
+                <div style="height:100%;border-radius:2px;background:var(--green);width:${Math.round(ct.amt/maxAmt*100)}%"></div>
+              </div>
+            </div>
+            <span class="mono" style="font-size:.74rem;font-weight:800;white-space:nowrap">${fmtCFA(ct.amt)}</span>
+          </div>`).join("");
+        })()}
       </div>
     </div>
 
@@ -2481,13 +2604,42 @@ function renderAnalyse() {
         <span style="font-size:1.1rem">💰</span>
         <div>
           <div style="font-weight:700;font-size:.82rem">Dépenses imprévues — Trésorerie ${yr}</div>
-          <div style="font-size:.63rem;color:var(--t3)">Non incluses dans le score budgétaire</div>
+          <div style="font-size:.63rem;color:var(--t3)">Incluses dans le calcul de l'épargne</div>
         </div>
         <div style="margin-left:auto;font-family:'JetBrains Mono',monospace;font-weight:900;color:var(--red)">${fmtCFA(trAnnual)}</div>
       </div>
-      <div style="font-size:.69rem;color:var(--t2);line-height:1.5">Ces dépenses ont été saisies via le module Trésorerie. Elles représentent des flux réels non planifiés et ne sont pas comptabilisées dans le score de santé financière.</div>
+      <div style="font-size:.69rem;color:var(--t2);line-height:1.5">Ces dépenses réelles saisies via la Trésorerie sont désormais prises en compte dans le taux d'épargne (Revenus − Dépenses totales).</div>
     </div>` : ""}
   `;
+
+  // ── Graphique en anneau : répartition par catégorie du mois sélectionné ──
+  setTimeout(()=>{
+    const donutEl = document.getElementById("ch-analyse-donut");
+    if(!donutEl) return;
+    if(charts["ch-analyse-donut"]) { charts["ch-analyse-donut"].destroy(); delete charts["ch-analyse-donut"]; }
+    const allCats = prefs.cats || DEFAULT_CATS_LIST;
+    const donutColors = ["#1A6B3C","#0B6E87","#CC3333","#6D32C8","#C97B0A","#2D4FC8","#E8231A","#00B050","#FF6600","#5C3D9C","#0099CC","#FF3399"];
+    const catData = allCats.map((cat,i)=>({
+      name: cat.name, ic: cat.ic,
+      amt: getCatMonthActual(yr, mo, cat.id),
+      color: donutColors[i % donutColors.length]
+    })).filter(c=>c.amt>0).sort((a,b)=>b.amt-a.amt);
+    if(catData.length>0) {
+      charts["ch-analyse-donut"] = new Chart(donutEl, {
+        type:"doughnut",
+        data:{
+          labels: catData.map(c=>`${c.ic} ${c.name}`),
+          datasets:[{data:catData.map(c=>c.amt),backgroundColor:catData.map(c=>c.color+"CC"),borderColor:catData.map(c=>c.color),borderWidth:1.5}]
+        },
+        options:{responsive:true,maintainAspectRatio:false,cutout:"55%",
+          plugins:{
+            legend:{position:"right",labels:{font:{size:9},color:"var(--t2)",boxWidth:10,padding:6}},
+            tooltip:{callbacks:{label:ctx=>`${ctx.label}: ${fmtCFA(ctx.raw)} (${Math.round(ctx.raw/catData.reduce((s,c)=>s+c.amt,0)*100)}%)`}}
+          }
+        }
+      });
+    }
+  },150);
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -2505,7 +2657,7 @@ function renderHistorique() {
     </div>
 
     <div class="card" style="margin-bottom:12px">
-      <div class="card-hd"><div><div class="ct">Évolution annuelle</div><div class="cs">Planifié vs Réalisé (M CFA)</div></div></div>
+      <div class="card-hd"><div><div class="ct">Évolution annuelle</div><div class="cs">Revenus · Planifié · Réalisé (M CFA)</div></div></div>
       <div class="cp" style="height:200px"><canvas id="ch-hist"></canvas></div>
     </div>
 
@@ -2513,7 +2665,7 @@ function renderHistorique() {
       <div class="card-hd"><div><div class="ct">Tableau récapitulatif</div><div class="cs">CFA — cliquer sur une année</div></div></div>
       <div style="overflow-x:auto">
         <table class="tbl">
-          <thead><tr><th>Année</th><th>Thiès</th><th>Dakar</th><th>Dettes</th><th>Autres</th><th>Planifié</th><th>Réalisé</th><th>Ecart</th></tr></thead>
+          <thead><tr><th>Année</th><th>Thiès</th><th>Dakar</th><th>Dettes</th><th>Autres</th><th>Planifié</th><th>Réalisé</th><th>Ecart</th><th>Revenus</th><th>Solde</th></tr></thead>
           <tbody>
             ${yrs.map(y=>{
               const ents=getEntries(y).filter(e=>!e._isTresorerie);
@@ -2522,6 +2674,8 @@ function renderHistorique() {
               const tp=ents.reduce((s,e)=>s+e.total_planned,0);
               const ta=ents.reduce((s,e)=>s+e.total_actual,0);
               const ec=ta-tp;
+              const rev=getYearRevTotal(y);          // Total revenus annuel (revs)
+              const solde=rev-(ta+trTotal);          // Solde = Revenus − Dépenses réelles (TR inclus)
               const isCur=y===yr;
               return `<tr style="background:${isCur?"var(--gl)":"transparent"};cursor:pointer" onclick="activateYear('${y}')">
                 <td style="font-weight:800;font-family:'JetBrains Mono',monospace;color:${isCur?"var(--green)":"var(--t1)"}">${isCur?"▶ ":""}${y}</td>
@@ -2529,6 +2683,8 @@ function renderHistorique() {
                 <td class="mono" style="color:var(--blue);font-weight:700;font-size:.76rem">${fmt(tp)}</td>
                 <td class="mono fw9 gn" style="font-size:.8rem">${fmt(ta)}${trTotal>0?`<span style="font-size:.55rem;color:var(--purple);margin-left:3px" title="Dont ${fmt(trTotal)} CFA Trésorerie">+TR</span>`:""}</td>
                 <td class="mono" style="font-size:.76rem;font-weight:700;color:${ec<0?"var(--green)":"var(--red)"}">${ec!==0?(sgn(ec)+fmt(Math.abs(ec))):"—"}</td>
+                <td class="mono" style="font-size:.76rem;font-weight:700;color:#C97B0A">${fmt(rev)}</td>
+                <td class="mono" style="font-size:.78rem;font-weight:800;color:${solde>=0?"var(--green)":"var(--red)"}">${solde!==0?(sgn(solde)+fmt(Math.abs(solde))):"—"}</td>
               </tr>`;
             }).join("")}
           </tbody>
@@ -2584,12 +2740,16 @@ function renderHistChart() {
         data:yrs.map(y=>getEntries(y).filter(e=>e.centre===ctr).reduce((s,e)=>s+e.total_actual,0)/1e6),
         backgroundColor:colCtr[i]+"99",borderColor:colCtr[i],borderWidth:1,borderRadius:2
       })),
+      {label:"Revenus",type:"line",stack:undefined,
+       data:yrs.map(y=>getYearRevTotal(y)/1e6),
+       borderColor:"#FFC000",backgroundColor:"transparent",borderWidth:2.5,pointRadius:3,pointBackgroundColor:"#FFC000",tension:.3},
       {label:"Planifié",type:"line",stack:undefined,
        data:yrs.map(y=>getYearTotal(y,"total_planned")/1e6),
        borderColor:"#C97B0A",backgroundColor:"transparent",borderWidth:2,borderDash:[5,4],pointRadius:3}
     ]},
     options:{responsive:true,maintainAspectRatio:false,interaction:{mode:"index",intersect:false},
-      plugins:{legend:{labels:{font:{size:9},color:"var(--t2)",boxWidth:9}}},
+      plugins:{legend:{labels:{font:{size:9},color:"var(--t2)",boxWidth:9}},
+        tooltip:{callbacks:{label:ctx=>`${ctx.dataset.label}: ${ctx.raw.toFixed(2)} M CFA`}}},
       scales:{x:{stacked:true,grid:{display:false},ticks:{color:"var(--t2)",font:{size:8}}},
               y:{stacked:true,grid:{color:"rgba(0,0,0,.05)"},ticks:{color:"var(--t2)",font:{size:8},callback:v=>v+"M"}}}}
   });
@@ -2618,7 +2778,7 @@ function renderParams() {
   pg.innerHTML = `
     <div style="font-weight:800;font-size:.93rem;margin-bottom:12px">Paramètres</div>
     <div class="tabs">
-      ${[["identity","👤 Identité"],["rubriques","📋 Rubriques"],["categories","🏷️ Catégories"],["centres","🏘️ Centres"],["alerts","🚨 Alertes"],["nonessential","⚖️ Non-essent."],["firebase","☁️ Firebase"],["conseil","💡 Conseil"],["backup","💾 Sauvegarde"],["virginiser","🧹 Virginiser"]].map(([id,lbl])=>`
+      ${[["identity","👤 Identité"],["rubriques","📋 Rubriques"],["categories","🏷️ Catégories"],["seuils","🎯 Seuils"],["centres","🏘️ Centres"],["alerts","🚨 Alertes"],["nonessential","⚖️ Non-essent."],["firebase","☁️ Firebase"],["conseil","💡 Conseil"],["backup","💾 Sauvegarde"],["virginiser","🧹 Virginiser"]].map(([id,lbl])=>`
         <button class="tab${paramsTab===id?" on":""}" data-tab="${id}" onclick="switchParamsTab('${id}')">${lbl}</button>
       `).join("")}
     </div>
@@ -2639,7 +2799,7 @@ function switchParamsTab(t) {
 function renderParamsTab() {
   const c = document.getElementById("params-content");
   if(!c) return;
-  const fn = {identity:paramsIdentity, rubriques:paramsRubriques, categories:paramsCats, centres:paramsCentres, alerts:paramsAlerts, nonessential:paramsNonEssential, firebase:paramsFirebase, conseil:paramsConseil, backup:paramsBackup, virginiser:paramsVirginiser};
+  const fn = {identity:paramsIdentity, rubriques:paramsRubriques, categories:paramsCats, seuils:paramsSeuils, centres:paramsCentres, alerts:paramsAlerts, nonessential:paramsNonEssential, firebase:paramsFirebase, conseil:paramsConseil, backup:paramsBackup, virginiser:paramsVirginiser};
   if(fn[paramsTab]) fn[paramsTab](c);
 }
 
@@ -3014,6 +3174,136 @@ function saveAlerts() {
   prefs.alertRequired  = document.getElementById("p-req").checked;
   scheduleSync();
   toast("Alertes sauvegardées ✓");
+}
+
+// ═══════════════════════════════════════════════════════════════
+// MOTEUR DE SEUILS PAR CATÉGORIE (Coach Financier)
+// ═══════════════════════════════════════════════════════════════
+// Structure : prefs.catSeuils = { "LOISIRS": {mode:"abs"|"pct", value:number}, ... }
+//   mode "abs" → seuil en CFA absolu par mois
+//   mode "pct" → seuil en % des revenus du mois
+
+function getCatSeuils() {
+  if(!prefs.catSeuils || typeof prefs.catSeuils !== "object") prefs.catSeuils = {};
+  return prefs.catSeuils;
+}
+function getCatSeuil(catId) {
+  const s = getCatSeuils()[catId];
+  return (s && typeof s.value === "number" && s.value > 0) ? s : null;
+}
+function getCatLabel(catId) {
+  const cat = (prefs.cats||DEFAULT_CATS_LIST).find(c=>c.id===catId);
+  return cat ? `${cat.ic} ${cat.name}` : catId;
+}
+// Dépenses réelles d'une catégorie pour un mois donné (Saisie + TR)
+function getCatMonthActual(y, m, catId) {
+  const fromEntries = getEntries(y).filter(e=>e.categorie===catId)
+    .reduce((s,e)=>s+(getMD(e,m).actual||0),0);
+  return fromEntries;
+}
+// Évalue si une catégorie dépasse son seuil pour un mois → renvoie l'objet d'alerte ou null
+function evalCatSeuil(y, m, catId) {
+  const seuil = getCatSeuil(catId);
+  if(!seuil) return null;
+  const actual = getCatMonthActual(y, m, catId);
+  let limit;
+  if(seuil.mode === "pct") {
+    const rev = getRevTotal(y, m);
+    limit = rev * seuil.value / 100;
+  } else {
+    limit = seuil.value;
+  }
+  if(limit <= 0) return null;
+  const ratio = actual / limit;
+  return {
+    catId, actual, limit, ratio,
+    mode: seuil.mode, seuilValue: seuil.value,
+    over: actual > limit,
+    pctOfLimit: Math.round(ratio*100)
+  };
+}
+// Liste toutes les catégories en dépassement pour un mois
+function getCatOverruns(y, m) {
+  const cats = (prefs.cats||DEFAULT_CATS_LIST).map(c=>c.id);
+  return cats.map(cid=>evalCatSeuil(y,m,cid)).filter(r=>r && r.over)
+    .sort((a,b)=>b.ratio-a.ratio);
+}
+// Détecte les tendances haussières : >20% de hausse sur 3 mois consécutifs
+function detectCatTrends(y) {
+  const trends = [];
+  const cats = (prefs.cats||DEFAULT_CATS_LIST).map(c=>c.id);
+  const curIdx = MK.indexOf(mo);
+  if(curIdx < 2) return trends; // besoin d'au moins 3 mois
+  cats.forEach(cid=>{
+    const m0 = getCatMonthActual(y, MK[curIdx-2], cid);
+    const m1 = getCatMonthActual(y, MK[curIdx-1], cid);
+    const m2 = getCatMonthActual(y, MK[curIdx],   cid);
+    // Hausse continue m0 < m1 < m2 et croissance globale > 20%
+    if(m0 > 0 && m1 > m0 && m2 > m1) {
+      const growth = (m2 - m0) / m0;
+      if(growth > 0.20) {
+        trends.push({ catId:cid, m0, m1, m2, growth,
+          months:[MNF[curIdx-2], MNF[curIdx-1], MNF[curIdx]] });
+      }
+    }
+  });
+  return trends.sort((a,b)=>b.growth-a.growth);
+}
+
+function paramsSeuils(c) {
+  const allCats = prefs.cats || DEFAULT_CATS_LIST;
+  const seuils = getCatSeuils();
+
+  c.innerHTML = `
+    <div class="card" style="padding:16px">
+      <div style="font-weight:800;font-size:.88rem;margin-bottom:4px">🎯 Seuils par Catégorie</div>
+      <div style="font-size:.7rem;color:var(--t3);margin-bottom:14px">
+        Définissez un plafond mensuel par catégorie. Une alerte s'affiche dès qu'une catégorie dépasse son seuil.
+        Choisissez un montant fixe (CFA) ou un pourcentage de vos revenus du mois.
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        ${allCats.map(cat=>{
+          const s = seuils[cat.id] || {mode:"abs", value:0};
+          return `<div style="border:1px solid var(--brd);border-radius:10px;padding:10px 12px">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+              <span style="font-size:1rem">${cat.ic}</span>
+              <span style="font-weight:700;font-size:.78rem;flex:1">${cat.name}</span>
+              ${(s.value>0)?`<span style="font-size:.6rem;font-weight:700;background:var(--gl);color:var(--green);padding:2px 7px;border-radius:99px">ACTIF</span>`:`<span style="font-size:.6rem;color:var(--t3)">désactivé</span>`}
+            </div>
+            <div style="display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center">
+              <input type="number" inputmode="numeric" placeholder="0 = pas de seuil" value="${s.value||""}"
+                onchange="setCatSeuilValue('${cat.id}',this.value)"
+                style="border:1.5px solid var(--brd);border-radius:8px;padding:8px 10px;font-size:.8rem;font-family:'JetBrains Mono',monospace;background:var(--bg);color:var(--t1);outline:none;width:100%;box-sizing:border-box">
+              <div style="display:flex;gap:4px">
+                <button onclick="setCatSeuilMode('${cat.id}','abs')" style="padding:7px 11px;border-radius:7px;font-size:.7rem;font-weight:700;cursor:pointer;border:1.5px solid ${s.mode==='abs'?'var(--blue)':'var(--brd)'};background:${s.mode==='abs'?'var(--bl)':'var(--bg)'};color:${s.mode==='abs'?'var(--blue)':'var(--t2)'};font-family:inherit">CFA</button>
+                <button onclick="setCatSeuilMode('${cat.id}','pct')" style="padding:7px 11px;border-radius:7px;font-size:.7rem;font-weight:700;cursor:pointer;border:1.5px solid ${s.mode==='pct'?'var(--blue)':'var(--brd)'};background:${s.mode==='pct'?'var(--bl)':'var(--bg)'};color:${s.mode==='pct'?'var(--blue)':'var(--t2)'};font-family:inherit">%</button>
+              </div>
+            </div>
+            ${s.value>0?`<div style="font-size:.63rem;color:var(--t3);margin-top:6px">Plafond : ${s.mode==='pct'?`${s.value}% des revenus mensuels`:`${fmtCFA(s.value)}/mois`}</div>`:""}
+          </div>`;
+        }).join("")}
+      </div>
+      <div style="margin-top:14px;padding:10px 12px;background:var(--al);border-radius:8px;font-size:.68rem;color:var(--amber);line-height:1.6">
+        💡 Un seuil à <strong>0</strong> désactive la surveillance de la catégorie. Les alertes apparaissent dans le Dashboard, le Coach Financier et la Trésorerie.
+      </div>
+    </div>
+  `;
+}
+
+function setCatSeuilValue(catId, val) {
+  const seuils = getCatSeuils();
+  const v = parseFloat(val) || 0;
+  if(!seuils[catId]) seuils[catId] = {mode:"abs", value:0};
+  seuils[catId].value = Math.max(0, v);
+  scheduleSync();
+  renderParamsTab();
+}
+function setCatSeuilMode(catId, mode) {
+  const seuils = getCatSeuils();
+  if(!seuils[catId]) seuils[catId] = {mode:"abs", value:0};
+  seuils[catId].mode = mode;
+  scheduleSync();
+  renderParamsTab();
 }
 
 function paramsNonEssential(c) {
@@ -3691,6 +3981,61 @@ function paramsConseil(c) {
   // Alertes
   const alertHtml = a.alerts.map(msg => `<div class="alert-b al-w">${msg}</div>`).join('');
 
+  // ── NOUVEAU : Alertes de seuils par catégorie (mois courant) ──
+  const overruns = getCatOverruns(yr, mo);
+  const seuilAlertsHtml = overruns.length ? `
+    <div class="card" style="padding:13px 15px;margin-bottom:12px;border-left:4px solid var(--red)">
+      <div style="font-weight:800;font-size:.82rem;margin-bottom:9px;color:var(--red)">🚨 Seuils dépassés — ${MNF[MK.indexOf(mo)]} ${yr}</div>
+      ${overruns.map(o=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--brd)">
+        <div style="font-size:.75rem;font-weight:600">${getCatLabel(o.catId)}</div>
+        <div style="text-align:right">
+          <div class="mono" style="font-size:.78rem;font-weight:800;color:var(--red)">${fmtCFA(o.actual)}</div>
+          <div style="font-size:.6rem;color:var(--t3)">seuil ${fmtCFA(o.limit)} · ${o.pctOfLimit}%</div>
+        </div>
+      </div>`).join("")}
+    </div>` : "";
+
+  // ── NOUVEAU : Tendances haussières (>20% sur 3 mois) ──
+  const trends = detectCatTrends(yr);
+  const trendAlertsHtml = trends.length ? `
+    <div class="card" style="padding:13px 15px;margin-bottom:12px;border-left:4px solid var(--amber)">
+      <div style="font-weight:800;font-size:.82rem;margin-bottom:9px;color:var(--amber)">📈 Tendances haussières détectées</div>
+      ${trends.map(t=>`<div style="padding:7px 0;border-bottom:1px solid var(--brd)">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span style="font-size:.75rem;font-weight:600">${getCatLabel(t.catId)}</span>
+          <span style="font-size:.72rem;font-weight:800;color:var(--amber)">+${Math.round(t.growth*100)}%</span>
+        </div>
+        <div style="font-size:.62rem;color:var(--t3);margin-top:2px">${t.months[0]} ${fmtCFA(t.m0)} → ${t.months[1]} ${fmtCFA(t.m1)} → ${t.months[2]} ${fmtCFA(t.m2)}</div>
+      </div>`).join("")}
+      <div style="font-size:.63rem;color:var(--t3);margin-top:8px">⚠️ Hausse continue sur 3 mois consécutifs. Surveillez ces postes.</div>
+    </div>` : "";
+
+  // ── NOUVEAU : Résumé exécutif ──
+  const lastM = a.months[a.months.length-1];
+  const situationGen = lastM.epargne >= 0
+    ? `Situation <strong style="color:var(--green)">saine</strong> : épargne de ${fmtCFA(lastM.epargne)} le mois dernier.`
+    : `Situation <strong style="color:var(--red)">tendue</strong> : déficit de ${fmtCFA(-lastM.epargne)} le mois dernier.`;
+  const postesSurveiller = [...overruns.map(o=>getCatLabel(o.catId)), ...trends.map(t=>getCatLabel(t.catId))];
+  const postesUniq = [...new Set(postesSurveiller)].slice(0,4);
+  const actions = [];
+  if(overruns.length) actions.push(`Réduire les ${overruns.length} catégorie(s) au-dessus du seuil`);
+  if(trends.length) actions.push(`Freiner la hausse sur ${trends.map(t=>getCatLabel(t.catId).replace(/^\S+\s/,"")).slice(0,2).join(", ")}`);
+  if(a.projEpargne < 0) actions.push(`Anticiper le déficit projeté de ${fmtCFA(-a.projEpargne)}`);
+  if(lastM.epargne >= 0 && !overruns.length && !trends.length) actions.push("Maintenir le cap et augmenter l'épargne automatique");
+
+  const resumeHtml = `
+    <div class="card" style="padding:14px 16px;margin-bottom:12px;border-left:4px solid var(--blue);background:var(--bl)">
+      <div style="font-weight:800;font-size:.85rem;margin-bottom:9px;color:var(--blue)">📋 Résumé exécutif</div>
+      <div style="font-size:.74rem;line-height:1.7;color:var(--t1)">
+        <div style="margin-bottom:7px"><strong>Situation générale.</strong> ${situationGen}</div>
+        <div style="margin-bottom:7px"><strong>Postes à surveiller.</strong> ${postesUniq.length ? postesUniq.join(" · ") : "Aucun dépassement ni tendance préoccupante ce mois."}</div>
+        <div><strong>Actions recommandées.</strong></div>
+        <ul style="margin:4px 0 0 0;padding-left:18px">
+          ${actions.map(ac=>`<li style="margin-bottom:3px">${ac}</li>`).join("")}
+        </ul>
+      </div>
+    </div>`;
+
   c.innerHTML = `
     <div style="margin-bottom:14px">
       <div style="font-weight:900;font-size:.95rem;margin-bottom:2px;">🧭 Coach Financier</div>
@@ -3702,6 +4047,9 @@ function paramsConseil(c) {
     </div>
 
     ${alertHtml}
+    ${resumeHtml}
+    ${seuilAlertsHtml}
+    ${trendAlertsHtml}
 
     <!-- Tableau historique -->
     <div class="card" style="overflow:hidden;margin-bottom:12px">
@@ -4793,7 +5141,7 @@ function trRenderTransactions(c) {
     </div>
 
     <div class="tr-filter-bar">
-      ${[["all","Tout"],["rev","💚 Revenus"],["dep","🔴 Dépenses"],["wave","📱 Wave"],["orange","🟠 Orange"],["banque","🏦 Banque"],["espece","💵 Espèces"]].map(([f,l])=>`<button class="tr-fbtn${trFilter===f?" on":""}" onclick="trSetFilter('${f}',this)">${l}</button>`).join("")}
+      ${[["all","Tout"],["rev","💚 Revenus"],["dep","🔴 Dépenses"],["critique","⚠️ Critiques"],["wave","📱 Wave"],["orange","🟠 Orange"],["banque","🏦 Banque"],["espece","💵 Espèces"]].map(([f,l])=>`<button class="tr-fbtn${trFilter===f?" on":""}" onclick="trSetFilter('${f}',this)">${l}</button>`).join("")}
     </div>
     <div id="tr-list-content"></div>
   `;
@@ -4839,6 +5187,18 @@ function trClearSearch() {
   if(existingX) { existingX.remove(); inp.style.paddingRight = "14px"; }
 }
 
+// Une transaction dépense est "critique" si sa catégorie dépasse son seuil ce mois-là
+function trTxnIsCritical(t) {
+  if(!t || t.type !== "dep" || !t.categorie) return false;
+  const ym = t.yearMonth || (t.date||"").slice(0,7);
+  if(!ym || !ym.includes("-")) return false;
+  const [y, mNum] = ym.split("-");
+  const mKey = MK[parseInt(mNum)-1];
+  if(!mKey) return false;
+  const ev = evalCatSeuil(y, mKey, t.categorie);
+  return ev && ev.over;
+}
+
 function trRenderList() {
   const c = document.getElementById("tr-list-content");
   if(!c) return;
@@ -4855,6 +5215,7 @@ function trRenderList() {
   // Étape 2 : filtres type/mode
   if(trFilter === "rev")    filtered = filtered.filter(t => t.type === "rev");
   else if(trFilter === "dep")    filtered = filtered.filter(t => t.type === "dep");
+  else if(trFilter === "critique") filtered = filtered.filter(t => trTxnIsCritical(t));
   else if(trFilter === "wave")   filtered = filtered.filter(t => t.mode === "wave");
   else if(trFilter === "orange") filtered = filtered.filter(t => t.mode === "orange");
   else if(trFilter === "banque") filtered = filtered.filter(t => t.mode === "banque");
@@ -4917,14 +5278,16 @@ function trRenderList() {
       const txnMonth = txnDate.getMonth()+1;
       const isEditable = (txnYear===nowYear && txnMonth===nowMonth);
 
-      html += `<div class="tr-txn-item tr-txn-${t.type}">
+      const isCrit = trTxnIsCritical(t);
+      html += `<div class="tr-txn-item tr-txn-${t.type}${isCrit?" tr-txn-critical":""}">
         <div style="min-width:26px;text-align:center;font-size:.6rem;font-weight:800;color:var(--t3);font-family:'JetBrains Mono',monospace;padding-right:4px">${lineNum--}</div>
         <div class="tr-txn-ic tr-txn-ic-${t.type}">${catObj.ic||(t.type==="rev"?"💚":"🔴")}</div>
         <div class="tr-txn-body">
-          <div class="tr-txn-name">${trEsc(t.designation||"—")}</div>
+          <div class="tr-txn-name">${isCrit?`<span title="Dépassement du seuil de catégorie" style="color:var(--red)">⚠️ </span>`:""}${trEsc(t.designation||"—")}</div>
           <div class="tr-txn-meta">
             ${catObj.nom?`<span class="tr-txn-cat">${catObj.nom}</span>`:""}
             <span class="tr-txn-mode">${TR_MODE_IC[t.mode]||"💳"} ${TR_MODE_NAMES[t.mode]||t.mode||""}</span>
+            ${isCrit?`<span style="font-size:.58rem;font-weight:700;background:var(--rl);color:var(--red);padding:1px 6px;border-radius:99px">SEUIL DÉPASSÉ</span>`:""}
             ${t.offline?`<span class="tr-offline-tag">⏳</span>`:""}
             ${txnYM&&txnYM!==curYM?`<span style="font-size:.58rem;color:var(--t3)">${txnYM}</span>`:""}
           </div>
